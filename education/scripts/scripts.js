@@ -22,7 +22,7 @@ const LIBS = '/libs';
 const CONFIG = {
   codeRoot: '/education',
   // contentRoot: '',
-  // imsClientId: 'college',
+  imsClientId: 'acom-education',
   // imsScope: 'AdobeID,openid,gnav',
   // geoRouting: 'off',
   // fallbackRouting: 'off',
