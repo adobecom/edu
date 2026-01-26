@@ -1,0 +1,140 @@
+{
+  "block": "media",
+  "variants": [
+    {
+      "tcid": "0",
+      "name": "@media-small-checklist-static-links-bio-con-block-media-reverse-mobile",
+      "selector": "div.media.small.checklist.static-links.bio.con-block.media-reverse-mobile",
+      "path": "/drafts/nala/demo/demo-page",
+      "data": {
+        "semantic": {
+          "texts": [
+            {
+              "selector": ".text p.detail-m",
+              "nth": 0,
+              "tag": "p",
+              "text": "Detail M 12/15",
+              "markup": "strong"
+            },
+            {
+              "selector": ".text h2.heading-xs",
+              "nth": 0,
+              "tag": "h2",
+              "text": "Heading XS 18/22 Media (small)",
+              "markup": null
+            },
+            {
+              "selector": ".text p.body-s",
+              "nth": 0,
+              "tag": "p",
+              "text": "Body S 16/24 Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat.",
+              "markup": null
+            },
+            {
+              "selector": ".text li",
+              "nth": 0,
+              "tag": "li",
+              "text": "List item",
+              "markup": null
+            },
+            {
+              "selector": ".text p.body-s.action-area",
+              "nth": 0,
+              "tag": "p",
+              "text": "Learn More Watch the Video",
+              "markup": null
+            },
+            {
+              "selector": ".text h3.heading-xs.supplemental-text",
+              "nth": 0,
+              "tag": "h3",
+              "text": "Title tag has to be h3 and accompanies with links below usually",
+              "markup": null
+            },
+            {
+              "selector": ".text p.subcopy-link",
+              "nth": 0,
+              "tag": "p",
+              "text": "Subcopy link 1",
+              "markup": null
+            },
+            {
+              "selector": ".text p.subcopy-link",
+              "nth": 1,
+              "tag": "p",
+              "text": "Subcopy link 2",
+              "markup": null
+            }
+          ],
+          "media": [
+            {
+              "selector": ".text picture.avatar",
+              "nth": 0,
+              "tag": "picture",
+              "src": "./media_1941c6145cbed3aa9a2614f3e85e633e279dc3e4f.png?width=750&format=png&optimize=medium",
+              "alt": ""
+            },
+            {
+              "selector": ".container picture",
+              "nth": 1,
+              "tag": "picture",
+              "src": "./media_1da77d360ae33a9ec970a4d1a978b28ed6062d8c0.png?width=750&format=png&optimize=medium",
+              "alt": ""
+            }
+          ],
+          "interactives": [
+            {
+              "type": "link",
+              "selector": ".text a.con-button.blue",
+              "nth": 0,
+              "text": "Learn More",
+              "href": "/",
+              "ariaLabel": null,
+              "rel": null,
+              "title": null,
+              "target": null
+            },
+            {
+              "type": "link",
+              "selector": ".text a.con-button.outline",
+              "nth": 0,
+              "text": "Watch the Video",
+              "href": "/",
+              "ariaLabel": null,
+              "rel": null,
+              "title": null,
+              "target": null
+            },
+            {
+              "type": "link",
+              "selector": ".text a.body-xxs",
+              "nth": 0,
+              "text": "Subcopy link 1",
+              "href": "/acrobat",
+              "ariaLabel": null,
+              "rel": null,
+              "title": null,
+              "target": null
+            },
+            {
+              "type": "link",
+              "selector": ".text a.body-xxs",
+              "nth": 1,
+              "text": "Subcopy link 2",
+              "href": "/acrobat/personal-document-management.html",
+              "ariaLabel": null,
+              "rel": null,
+              "title": null,
+              "target": null
+            }
+          ]
+        }
+      },
+      "tags": [
+        "@media",
+        "@small-checklist-static-links-bio-con-block-media-reverse-mobile",
+        "@edu"
+      ]
+    }
+  ]
+}
