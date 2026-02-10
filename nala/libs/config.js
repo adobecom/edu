@@ -1,5 +1,5 @@
 // CommonJS Config (.js with module.exports)
-const PROJECT = 'education';
+const PROJECT = 'edu';
 const ORG = 'adobecom';
 const BRANCHES = { main: 'main', stage: 'stage' };
 const MAIN_BRANCH_LIVE_URL = `https://${BRANCHES.main}--${PROJECT}--${ORG}.aem.live`;

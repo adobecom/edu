@@ -1,6 +1,6 @@
 // nala/libs/constants.js
 
-const DEFAULT_REPO = 'education';
+const DEFAULT_REPO = 'edu';
 const DEFAULT_ORG = 'adobecom';
 
 // Default fallback BASE_URLS (not project-specific)
