@@ -21,7 +21,7 @@ const LIBS = '/libs';
 
 const CONFIG = {
   codeRoot: '/education',
-  // contentRoot: '',
+  contentRoot: '/education',
   imsClientId: 'acom-education',
   imsScope: 'AdobeID,openid,gnav,pps.read,firefly_api,additional_info.roles,read_organizations,account_cluster.read',
   // geoRouting: 'off',
