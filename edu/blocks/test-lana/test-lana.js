@@ -1,4 +1,4 @@
-import { getLibs } from '../../scripts/utils.js';
+import { getLibs } from '../../scripts/scripts.js';
 
 let createTag;
 
