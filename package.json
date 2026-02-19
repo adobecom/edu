@@ -9,7 +9,7 @@
     "test:watch": "npm test -- --watch",
     "lint": "npm run lint:js && npm run lint:css",
     "lint:js": "eslint .",
-    "lint:css": "stylelint 'education/blocks/**/*.css' 'education/styles/*.css'",
+    "lint:css": "stylelint 'edu/blocks/**/*.css' 'edu/styles/*.css'",
     "nala": "node nala/utils/nala.run.cjs",
     "a11y": "node nala/utils/nala.cli.cjs a11y",
     "nala-test-gen": "node nala/utils/test-gen/index.cjs"
