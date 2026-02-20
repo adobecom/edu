@@ -38,7 +38,7 @@
     letter-spacing: -3%;
   }
 
-  @media screen and (min-width: 600px) {
+  @media screen and (min-width: 1200px) {
     --type-heading-all-weight: 800;
     --type-heading-xxxl-size: calc(var(--font-size-multiplier, 1) * 80px);
     --type-heading-xxl-size: calc(var(--font-size-multiplier, 1) * 64px);
