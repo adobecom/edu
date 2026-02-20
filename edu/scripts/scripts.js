@@ -20,7 +20,7 @@ export const [setLibs, getLibs] = (() => {
     (prodLibs, location) => {
       libs = (() => {
         const { hostname, search } = location || window.location;
-        if (!(hostname.includes('.hlx.') || hostname.includes('.aem.') || hostname.includes('local'))) return prodLibs;
+        if (!['.aem.', '.stage.', 'local', '.da.'].some((i) => hostname.includes(i))) return prodLibs;
         const branch = new URLSearchParams(search).get('milolibs') || 'main';
         if (branch === 'local') return 'http://localhost:6456/libs';
         return branch.includes('--') ? `https://${branch}.aem.live/libs` : `https://${branch}--milo--adobecom.aem.live/libs`;
@@ -75,6 +75,10 @@ const CONFIG = {
 
 const miloLibs = setLibs(LIBS);
 
+function overrideConsonantTypography() {
+  document.body.setAttribute('data-edu-typography-override', 'true');
+}
+
 (function loadStyles() {
   const paths = [`${miloLibs}/styles/styles.css`];
   if (STYLES) { paths.push(STYLES); }
@@ -87,7 +91,10 @@ const miloLibs = setLibs(LIBS);
 }());
 
 async function loadPage() {
-  const { loadArea, setConfig, loadLana } = await import(`${miloLibs}/utils/utils.js`);
+  const { loadArea, setConfig, loadLana, getMetadata } = await import(`${miloLibs}/utils/utils.js`);
+  if (getMetadata('edu-typography-override') === 'on') {
+    overrideConsonantTypography();
+  }
   // eslint-disable-next-line no-unused-vars
   const config = setConfig({ ...CONFIG, miloLibs });
   decorateArea();
