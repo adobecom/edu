@@ -76,7 +76,7 @@ const CONFIG = {
 const miloLibs = setLibs(LIBS);
 
 function overrideConsonantTypography() {
-  document.body.setAttribute('data-edu-typography-override', 'true');
+  document.documentElement.setAttribute('data-edu-typography-override', 'on');
 }
 
 (function loadStyles() {
