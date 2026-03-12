@@ -65,6 +65,12 @@ const CONFIG = {
     de: { ietf: 'de-DE', tk: 'hah7vzn.css' },
     kr: { ietf: 'ko-KR', tk: 'zfo3ouc' },
   },
+  uniqueSiteId: 'edu',
+  mepLingoCountryToRegion: {
+    africa: ['ke', 'mu', 'ng', 'za'],
+    la: ['bo', 'cr', 'do', 'ec', 'gt', 'pa', 'pr', 'py', 'sv', 'uy', 've'],
+    mena_en: ['bh', 'dz', 'iq', 'ir', 'jo', 'lb', 'ly', 'om', 'ps', 'sy', 'tn', 'ye'],
+  },
 };
 
 /*
