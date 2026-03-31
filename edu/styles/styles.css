@@ -1,4 +1,4 @@
-:root[data-edu-typography-override='on'] {
+:root {
   /* Headings (Consonant) */
   --type-heading-homepage-weight: 900;
   --type-heading-all-weight: 800;
