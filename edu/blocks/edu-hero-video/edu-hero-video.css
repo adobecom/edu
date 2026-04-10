@@ -1,0 +1,23 @@
+.edu-hero-video {
+  .desktop-only,
+  .mobile-only {
+    position: relative;
+    max-width: 1800px;
+    margin: auto;
+    display: none;
+  }
+}
+
+/* mobile ONLY */
+@media screen and (max-width: 600px) {
+  .edu-hero-video .mobile-only {
+    display: block;
+  }
+}
+
+/* Tablet and desktop */
+@media screen and (min-width: 600px) {
+  .edu-hero-video .desktop-only {
+    display: block;
+  }
+}
