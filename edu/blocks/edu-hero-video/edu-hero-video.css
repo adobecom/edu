@@ -1,5 +1,4 @@
-
-.edu-marquee {
+.edu-hero-video {
   .desktop-only,
   .mobile-only {
     position: relative;
@@ -7,27 +6,18 @@
     margin: auto;
     display: none;
   }
-
-  .text-container {
-    text-align: center;
-    margin: auto;
-  }
 }
 
 /* mobile ONLY */
 @media screen and (max-width: 600px) {
-  .edu-marquee .mobile-only {
+  .edu-hero-video .mobile-only {
     display: block;
-  }
-
-  .edu-marquee .text-container {
-    width: 300px;
   }
 }
 
 /* Tablet and desktop */
 @media screen and (min-width: 600px) {
-  .edu-marquee .desktop-only {
+  .edu-hero-video .desktop-only {
     display: block;
   }
 }
