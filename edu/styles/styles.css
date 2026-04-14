@@ -104,3 +104,89 @@
   }
 }
 
+/* Blank author: text rather than link */
+.article-header {
+  .article-byline-info > p:first-child {
+    font-weight: 600;
+    margin: 0;
+    padding: 0;
+  }
+}
+
+/* Copied from da-bacom-blog */
+.article-header {
+  --featured-media-height: 440px;
+}
+
+.article-header .article-feature-image,
+.article-header .article-feature-video {
+  padding: 0;
+  margin: auto;
+  width: 100%;
+  max-width: 1000px;
+}
+
+.article-header .article-feature-image .figure-feature img {
+  width: 100%;
+  max-height: var(--featured-media-height);
+  object-fit: cover;
+}
+
+.article-feed .article-card-date,
+.gnav-search-results .article-card-date,
+.recommended-articles .article-card-date,
+.featured-article .featured-article-card-date {
+  display: none;
+}
+
+.quote {
+  max-width: var(--grid-container-width);
+  margin: 0 auto;
+}
+
+.recommended-articles-small-content-wrapper .article-card .article-card-body {
+  padding: 1.5rem;
+}
+
+.recommended-articles-small-content-wrapper .article-card .article-card-body h3 {
+  margin-bottom: 0;
+}
+
+main .article-header {
+  margin: 0;
+  padding-top: var(--spacing-xxl);
+}
+
+main .article-header .article-category div,
+main .article-header .article-category p {
+  margin: 0;
+}
+
+@media screen and (min-width: 600px) {
+  main .article-header .article-category,
+  main .article-header .article-title,
+  main .article-header .article-byline {
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  main .article-feature-video .milo-video,
+  main .article-feature-video .embed-vimeo {
+    padding-bottom: var(--featured-media-height);
+  }
+
+  main .article-feature-video lite-vimeo,
+  main .article-feature-video video {
+    height: var(--featured-media-height);
+    width: 100%;
+  }
+}
+
+@media screen and (min-width: 1200px) {
+  .recommended-articles-small-content-wrapper .article-card .article-card-body {
+    padding: 1.25rem;
+  }
+}
