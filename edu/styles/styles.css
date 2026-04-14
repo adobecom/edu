@@ -166,7 +166,7 @@ main .article-header .article-category p {
   main .article-header .article-category,
   main .article-header .article-title,
   main .article-header .article-byline {
-    max-width: 600px;
+    max-width: 800px;
     margin-left: auto;
     margin-right: auto;
     padding-left: 0;
