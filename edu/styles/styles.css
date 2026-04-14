@@ -104,13 +104,18 @@
   }
 }
 
-/* Blank author: text rather than link */
-.article-header {
-  .article-byline-info > p:first-child {
-    font-weight: 600;
-    margin: 0;
-    padding: 0;
-  }
+/* Blank author: text when not link */
+.article-header .article-byline-info > p:first-child {
+  font-weight: 600;
+  margin: 0;
+  padding: 0;
+}
+
+/* override da-bacom-blog */
+.article-header .article-title h1 {
+  font-size: var(--type-heading-xl-size);
+  letter-spacing: var(--type-heading-xl-ls);
+  font-weight: var(--type-heading-all-weight);
 }
 
 /* Copied from da-bacom-blog */
@@ -162,7 +167,8 @@ main .article-header .article-category p {
   margin: 0;
 }
 
-@media screen and (min-width: 600px) {
+/* revert da-bacom-blog back to milo width */
+@media screen and (min-width: 700px) {
   main .article-header .article-category,
   main .article-header .article-title,
   main .article-header .article-byline {
