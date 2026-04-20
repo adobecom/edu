@@ -104,6 +104,15 @@
   }
 }
 
+/* Override tab block due to typography changes */
+@media screen and (max-width: 1199px) {
+  .tabs.quiet {
+    .tabList, .paddle {
+      height: 51px;
+    }
+  }
+}
+
 /* Blank author: text when not link */
 .article-header .article-byline-info > p:first-child {
   font-weight: 600;
