@@ -7,7 +7,7 @@
   --type-heading-xxxxl-ls: -0.04em;
   --type-heading-xxxl-size: calc(var(--font-size-multiplier, 1) * 36px);
   --type-heading-xxxl-lh: 1;
-  --type-heading-xxxl-sp: -0.04em;
+  --type-heading-xxxl-ls: -0.04em;
   --type-heading-xxl-size: calc(var(--font-size-multiplier, 1) * 32px);
   --type-heading-xxl-lh: 1.25;
   --type-heading-xxl-ls: -0.04em;
@@ -17,6 +17,7 @@
   --type-heading-l-size: calc(var(--font-size-multiplier, 1) * 24px);
   --type-heading-l-lh: 1.25;
   --type-heading-l-ls: -0.03em;
+  /* m-xxs not defined by Design */
   --type-heading-m-size: calc(var(--font-size-multiplier, 1) * 24px);
   --type-heading-m-lh: 1.25;
   --type-heading-s-size: calc(var(--font-size-multiplier, 1) * 20px);
@@ -31,6 +32,11 @@
     font-size: var(--type-heading-xxxxl-size);
     letter-spacing: var(--type-heading-xxxxl-ls);
     line-height: var(--type-heading-xxxxl-lh);
+
+    /* Override mweb */
+    strong {
+      font-weight: var(--type-heading-xxxxl-weight);
+    }
   }
 
   .heading-xxxl, .heading-xxl, .heading-xl, .heading-l, .heading-m, .heading-s, .heading-xs, .heading-xxs {
