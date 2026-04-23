@@ -246,6 +246,7 @@ function replaceDotMedia(area = document) {
   };
   resetAttributeBase('img', 'src');
   resetAttributeBase('source', 'srcset');
+  resetAttributeBase('source', 'src');
 }
 
 replaceDotMedia(document);
