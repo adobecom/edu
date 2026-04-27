@@ -187,7 +187,7 @@ const CONFIG = {
   },
   stageDomainsMap: {
     'www.stage.adobe.com': {
-      'www.adobe.com': 'origin',
+      'www.adobe.com': 'www.adobe.com',
       'business.adobe.com': 'business.stage.adobe.com',
       'helpx.adobe.com': 'helpx.stage.adobe.com',
       'blog.adobe.com': 'blog.stage.adobe.com',
