@@ -31,6 +31,28 @@ export const [setLibs, getLibs] = (() => {
   ];
 })();
 
+const getLocale = (locales, pathname = window.location.pathname) => {
+  if (!locales) {
+    return { ietf: 'en-US', tk: 'hah7vzn.css', prefix: '' };
+  }
+  const LANGSTORE = 'langstore';
+  const split = pathname.split('/');
+  const localeString = split[1];
+  const locale = locales[localeString] || locales[''];
+  if (localeString === LANGSTORE) {
+    locale.prefix = `/${localeString}/${split[2]}`;
+    if (
+      Object.values(locales)
+        .find((loc) => loc.ietf?.startsWith(split[2]))?.dir === 'rtl'
+    ) locale.dir = 'rtl';
+    return locale;
+  }
+  const isUS = locale.ietf === 'en-US';
+  locale.prefix = isUS ? '' : `/${localeString}`;
+  locale.region = isUS ? 'us' : localeString.split('_')[0];
+  return locale;
+};
+
 // eslint-disable-next-line no-unused-vars
 export function decorateArea(area = document) {
   const eagerLoad = (parent, selector) => {
@@ -206,6 +228,27 @@ const CONFIG = {
     mena_en: ['bh', 'dz', 'iq', 'ir', 'jo', 'lb', 'ly', 'om', 'ps', 'sy', 'tn', 'ye'],
   },
 };
+
+
+
+const { prefix } = getLocale(CONFIG.locales);
+
+function replaceDotMedia(area = document) {
+  // eslint-disable-next-line compat/compat
+  const currUrl = new URL(window.location);
+  const pathSeg = currUrl.pathname.split('/').length;
+  if ((prefix === '' && pathSeg >= 3) || (prefix !== '' && pathSeg >= 4)) return;
+  const resetAttributeBase = (tag, attr) => {
+    area.querySelectorAll(`${tag}[${attr}^="./media_"]`).forEach((el) => {
+      // eslint-disable-next-line compat/compat
+      el[attr] = `${new URL(`${CONFIG.contentRoot}${el.getAttribute(attr).substring(1)}`, window.location).href}`;
+    });
+  };
+  resetAttributeBase('img', 'src');
+  resetAttributeBase('source', 'srcset');
+}
+
+replaceDotMedia(document);
 
 /*
  * ------------------------------------------------------------
