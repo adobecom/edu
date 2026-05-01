@@ -84,6 +84,18 @@ const CONFIG = {
   // iconsExcludeBlocks: [],
   decorateArea,
   // brought over from cc
+  stage: {
+    pdfViewerClientId: 'dc9db92aa7c64f07947d63bb41dc4887',
+  },
+  prod: {
+    pdfViewerClientId: 'd7a92db2207e469faf39b3c6128f6011',
+  },
+  page: {
+    pdfViewerClientId: '4b86a99481a946348483d4a145307049', // client id for main--edu--adobecom.aem.page domain
+  },
+  live: {
+    pdfViewerClientId: 'd79caec02447430f9fa70a7d997b60df', // client id for main--edu--adobecom.aem.live domain
+  },
   locales: {
     // Americas
     ar: { ietf: 'es-AR', tk: 'oln4yqj.css' },
