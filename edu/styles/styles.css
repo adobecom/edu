@@ -20,6 +20,7 @@
   /* m-xxs not defined by Design */
   --type-heading-m-size: calc(var(--font-size-multiplier, 1) * 24px);
   --type-heading-m-lh: 1.25;
+  --type-heading-m-ls: -0.03em;
   --type-heading-s-size: calc(var(--font-size-multiplier, 1) * 20px);
   --type-heading-s-lh: 1.25;
   --type-heading-xs-size: calc(var(--font-size-multiplier, 1) * 18px);
@@ -67,6 +68,12 @@
     line-height: var(--type-heading-l-lh);
   }
 
+  .heading-m {
+    font-size: var(--type-heading-m-size);
+    letter-spacing: var(--type-heading-m-ls);
+    line-height: var(--type-heading-m-lh);
+  }
+
   @media screen and (min-width: 600px) and (max-width: 1199px) {
     --type-heading-xxxxl-weight: 900;
     --type-heading-all-weight: 800;
@@ -104,6 +111,8 @@
     --type-heading-l-lh: 1.25;
     --type-heading-l-ls: -0.03em;
     --type-heading-m-size: calc(var(--font-size-multiplier, 1) * 28px);
+    --type-heading-m-lh: 1.25;
+    --type-heading-m-ls: -0.03em;
     --type-heading-s-size: calc(var(--font-size-multiplier, 1) * 24px);
     --type-heading-xs-size: calc(var(--font-size-multiplier, 1) * 20px);
     --type-heading-xxs-size: calc(var(--font-size-multiplier, 1) * 18px);
