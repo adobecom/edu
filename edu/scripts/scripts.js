@@ -199,7 +199,7 @@ const CONFIG = {
   },
   stageDomainsMap: {
     'www.stage.adobe.com': {
-      'www.adobe.com': 'www.adobe.com',
+      'www.adobe.com': 'origin',
       'business.adobe.com': 'business.stage.adobe.com',
       'helpx.adobe.com': 'helpx.stage.adobe.com',
       'blog.adobe.com': 'blog.stage.adobe.com',
@@ -221,7 +221,7 @@ const CONFIG = {
       'projectneo.adobe.com': 'projectneo.adobe.com',
     },
     '--edu--adobecom.aem.page': {
-      'www.adobe.com': 'www.adobe.com',
+      'www.adobe.com': 'www.stage.adobe.com',
       'business.adobe.com': 'business.stage.adobe.com',
       'helpx.adobe.com': 'helpx.stage.adobe.com',
       'blog.adobe.com': 'blog.stage.adobe.com',
