@@ -128,6 +128,32 @@
   }
 }
 
+/* Override Quote block */
+.quote .quote-wrapper blockquote .quote-copy {
+  font-weight: var(--type-heading-all-weight);
+}
+
+/* Add to Quote block */
+.quote.xsmall blockquote .quote-copy {
+  letter-spacing: var(--type-heading-xs-ls);
+}
+
+.quote.small blockquote .quote-copy {
+  letter-spacing: var(--type-heading-s-ls);
+}
+
+.quote.large blockquote .quote-copy {
+  letter-spacing: var(--type-heading-l-ls);
+}
+
+.quote.xlarge blockquote .quote-copy {
+  letter-spacing: var(--type-heading-xl-ls);
+}
+
+.quote.xxlarge blockquote .quote-copy {
+  letter-spacing: var(--type-heading-xxl-ls);
+}
+
 /* Blank author: text when not link */
 .article-header .article-byline-info > p:first-child {
   font-weight: 600;
