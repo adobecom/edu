@@ -28,6 +28,163 @@
 
   [miloStyles, miloUtils, miloDecorate].forEach((tag) => tag.setAttribute('rel', 'preload'));
   document.head.append(miloStyles, miloUtils, miloDecorate);
+
+  /* hreflang links for phase 1 only. Replace this with normal hreflang code when going live with rest of world. */
+  const userAgentMeta = document.querySelector('meta[name="hreflinksuseragents"]');
+  const allowedAgents = userAgentMeta && userAgentMeta.content.split(',');
+  const userAgentString = window.navigator.userAgent;
+  const isAllowedAgent = allowedAgents && allowedAgents.some((agent) => userAgentString.includes(agent.trim()));
+  const isTestOverride = window.location.search.includes('includehreflang');
+
+  const flagMeta = document.querySelector('meta[name="head-loaded"]');
+  const ssrFlag = flagMeta?.content === 'true';
+
+  const k12Map = new Map([
+    ['en-US', ''],
+    ['ja-JP', '/jp'],
+    ['ko-KR', '/kr'],
+    ['tr-TR', '/tr'],
+    ['en-CA', '/ca'],
+    ['ar-AE', '/ae_ar'],
+    ['fr-CA', '/ca_fr'],
+    ['da-DK', '/dk'],
+    ['hu-HU', '/hu'],
+    ['uk-UA', '/ua'],
+    ['x-default', ''],
+  ]);
+
+  const educationMap = new Map([
+    ['en-US', ''],
+    ['en-AU', '/au'],
+    ['de-DE', '/de'],
+    ['es-ES', '/es'],
+    ['fr-FR', '/fr'],
+    ['it-IT', '/it'],
+    ['ja-JP', '/jp'],
+    ['ko-KR', '/kr'],
+    ['zh-HK', '/hk_zh'],
+    ['zh-TW', '/tw'],
+    ['nl-NL', '/nl'],
+    ['pl-PL', '/pl'],
+    ['tr-TR', '/tr'],
+    ['en-GB', '/uk'],
+    ['en-CA', '/ca'],
+    ['ar-AE', '/ae_ar'],
+    ['en-AE', '/ae_en'],
+    ['de-AT', '/at'],
+    ['en-BE', '/be_en'],
+    ['fr-BE', '/be_fr'],
+    ['fr-CA', '/ca_fr'],
+    ['de-CH', '/ch_de'],
+    ['fr-CH', '/ch_fr'],
+    ['es-CL', '/cl'],
+    ['en-GR', '/gr_en'],
+    ['en-HK', '/hk_en'],
+    ['en-IE', '/ie'],
+    ['en-IL', '/il_en'],
+    ['en-IN', '/in'],
+    ['lt-LT', '/lt'],
+    ['de-LU', '/lu_de'],
+    ['en-LU', '/lu_en'],
+    ['fr-LU', '/lu_fr'],
+    ['en-DZ', '/mena_en'],
+    ['en-NZ', '/nz'],
+    ['ar-SA', '/sa_ar'],
+    ['en-SA', '/sa_en'],
+    ['en-TH', '/th_en'],
+    ['th-TH', '/th_th'],
+    ['en-ZA', '/za'],
+    ['en-BJ', '/africa'],
+    ['en-CM', '/africa'],
+    ['en-MA', '/africa'],
+    ['en-TG', '/africa'],
+    ['en-TN', '/africa'],
+    ['es-AR', '/ar'],
+    ['es-CO', '/co'],
+    ['es-CR', '/cr'],
+    ['es-EC', '/ec'],
+    ['ar-EG', '/eg_ar'],
+    ['en-EG', '/eg_en'],
+    ['es-GT', '/gt'],
+    ['en-ID', '/id_en'],
+    ['id-ID', '/id_id'],
+    ['hi-IN', '/in_hi'],
+    ['ar-KW', '/kw_ar'],
+    ['en-KW', '/kw_en'],
+    ['en-MY', '/my_en'],
+    ['ms-MY', '/my_ms'],
+    ['en-NG', '/ng'],
+    ['es-PE', '/pe'],
+    ['en-PH', '/ph_en'],
+    ['fil-PH', '/ph_fil'],
+    ['es-PR', '/pr'],
+    ['ar-QA', '/qa_ar'],
+    ['en-QA', '/qa_en'],
+    ['en-VN', '/vn_en'],
+    ['vi-VN', '/vn_vi'],
+    ['da-DK', '/dk'],
+    ['fi-FI', '/fi'],
+    ['no-NO', '/no'],
+    ['sv-SE', '/se'],
+    ['es-PA', '/la'],
+    ['es-SV', '/la'],
+    ['es-VE', '/la'],
+    ['es-MX', '/mx'],
+    ['nl-BE', '/be_nl'],
+    ['it-CH', '/ch_it'],
+    ['cs-CZ', '/cz'],
+    ['hu-HU', '/hu'],
+    ['he-IL', '/il_he'],
+    ['ar-IL', '/mena_ar'],
+    ['ar-IQ', '/mena_ar'],
+    ['ar-JO', '/mena_ar'],
+    ['ar-LB', '/mena_ar'],
+    ['ar-MA', '/mena_ar'],
+    ['ar-OM', '/mena_ar'],
+    ['pt-PT', '/pt'],
+    ['ro-RO', '/ro'],
+    ['sl-SI', '/si'],
+    ['sk-SK', '/sk'],
+    ['uk-UA', '/ua'],
+    ['en-SG', '/sg'],
+    ['pt-BR', '/br'],
+    ['x-default', ''],
+  ]);
+
+  (() => {
+    function createHreflangLinks() {
+      const sitemapOrigin = 'https://www.adobe.com';
+      const educationPathName = '/education.html';
+      const k12PathName = '/education/k12.html';
+      const { origin, pathname } = window.location;
+      let sitemap;
+
+      if (pathname.toLowerCase() === educationPathName) sitemap = educationMap;
+      if (pathname.toLowerCase() === k12PathName) sitemap = k12Map;
+
+      if (sitemap) {
+        const linkElements = [];
+        for (const [hreflang, href] of sitemap) {
+          const link = document.createElement('link');
+          link.rel = 'alternate';
+          link.hreflang = hreflang;
+          link.href = sitemapOrigin + href + pathname;
+          linkElements.push(link);
+        }
+
+        const titleElement = document.head.querySelector('title');
+        if (linkElements.length > 0 && titleElement) {
+          titleElement.after(...linkElements);
+        }
+      }
+    }
+
+    if ((isAllowedAgent && !ssrFlag) || isTestOverride) {
+      createHreflangLinks();
+    }
+  })();
+
+  flagMeta.content = 'true';
 </script>
 <script src="/edu/scripts/scripts.js" type="module"></script>
 <style>body { display: none; }</style>
