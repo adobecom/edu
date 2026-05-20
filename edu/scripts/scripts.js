@@ -79,6 +79,10 @@ const CONFIG = {
   contentRoot: '/edu-shared',
   imsClientId: 'acom-education',
   imsScope: 'AdobeID,openid,gnav,pps.read,firefly_api,additional_info.roles,read_organizations,account_cluster.read',
+  htmlExclude: [
+    /adobe\.com\/learn(\/.*)?/,
+  ],
+  useDotHtml: true,
   // geoRouting: 'off',
   // fallbackRouting: 'off',
   // iconsExcludeBlocks: [],
