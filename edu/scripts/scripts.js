@@ -81,6 +81,7 @@ const CONFIG = {
   imsScope: 'AdobeID,openid,gnav,pps.read,firefly_api,additional_info.roles,read_organizations,account_cluster.read',
   htmlExclude: [
     /adobe\.com\/learn(\/.*)?/,
+    /adobe\.com\/express(\/.*)?/,
   ],
   useDotHtml: true,
   // geoRouting: 'off',
