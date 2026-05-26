@@ -1,0 +1,8 @@
+version: 2
+updates:
+  - package-ecosystem: "npm" # Type of dependencies (npm, pip, bundler, etc.)
+    directory: "/"           # Directory where the dependencies file is located
+    security-updates-only: true
+    target-branch: "stage"
+    schedule:
+      interval: "weekly"
