@@ -202,6 +202,7 @@ const CONFIG = {
     cis_ru: { ietf: 'ru', tk: 'qxw8hzm.css' },
     cis_en: { ietf: 'en', tk: 'pps7abe.css' },
   },
+  prodDomains: ['www.adobe.com', 'helpx.adobe.com', 'express.adobe.com', 'blog.adobe.com'],
   stageDomainsMap: {
     'www.stage.adobe.com': {
       'www.adobe.com': 'origin',
@@ -215,7 +216,7 @@ const CONFIG = {
       'projectneo.adobe.com': 'stg.projectneo.adobe.com',
     },
     '--edu--adobecom.aem.live': {
-      'www.adobe.com': 'www.adobe.com',
+      'www.adobe.com': 'origin',
       'business.adobe.com': 'business.adobe.com',
       'helpx.adobe.com': 'helpx.adobe.com',
       'blog.adobe.com': 'blog.adobe.com',
@@ -226,7 +227,7 @@ const CONFIG = {
       'projectneo.adobe.com': 'projectneo.adobe.com',
     },
     '--edu--adobecom.aem.page': {
-      'www.adobe.com': 'www.stage.adobe.com',
+      'www.adobe.com': 'origin',
       'business.adobe.com': 'business.stage.adobe.com',
       'helpx.adobe.com': 'helpx.stage.adobe.com',
       'blog.adobe.com': 'blog.stage.adobe.com',
