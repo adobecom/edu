@@ -2,7 +2,6 @@ version: 2
 updates:
   - package-ecosystem: "npm"
     directory: "/"
-    security-updates-only: true
     target-branch: "stage"
     schedule:
       interval: "weekly"
