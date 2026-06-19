@@ -121,7 +121,7 @@
               "selector": ".text a.body-xxs",
               "nth": 1,
               "text": "Subcopy link 2",
-              "href": "/acrobat/personal-document-management.html",
+              "href": "/acrobat/personal-document-management",
               "ariaLabel": null,
               "rel": null,
               "title": null,
