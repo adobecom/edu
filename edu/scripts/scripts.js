@@ -202,7 +202,7 @@ const CONFIG = {
     cis_ru: { ietf: 'ru', tk: 'qxw8hzm.css' },
     cis_en: { ietf: 'en', tk: 'pps7abe.css' },
   },
-  prodDomains: ['www.adobe.com', 'helpx.adobe.com', 'express.adobe.com', 'blog.adobe.com'],
+  prodDomains: ['www.adobe.com', 'helpx.adobe.com', 'express.adobe.com', 'blog.adobe.com', 'business.adobe.com'],
   stageDomainsMap: {
     'www.stage.adobe.com': {
       'www.adobe.com': 'origin',
