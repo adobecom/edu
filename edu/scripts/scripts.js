@@ -269,6 +269,17 @@ function replaceDotMedia(area = document) {
 replaceDotMedia(document);
 
 /*
+ * Temporary fix for higher-ed.html#creativecloud-rfi modal renaming
+ * Remove after linking pages from CC are updated.
+ * This won't break anything once the links are updated.
+ * So no timing or coordination needed.
+ * https://jira.corp.adobe.com/browse/MWPW-199207
+ */
+const higherEd = window.location.pathname.endsWith("higher-ed.html") || window.location.pathname.endsWith("higher-ed");
+const creativeCloudRfi = window.location.hash === "#creativecloud-rfi";
+if (higherEd && creativeCloudRfi) window.location.hash = "#consultation";
+
+/*
  * ------------------------------------------------------------
  * Edit below at your own risk
  * ------------------------------------------------------------
