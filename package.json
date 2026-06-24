@@ -48,7 +48,7 @@
     "playwright": "^1.56.0",
     "sinon": "13.0.1",
     "stylelint": "^14.6.0",
-    "stylelint-config-prettier": "9.0.3",
+    "stylelint-config-prettier": "9.0.5",
     "stylelint-config-standard": "^25.0.0"
   }
 }
