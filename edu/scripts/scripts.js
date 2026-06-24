@@ -88,6 +88,11 @@ const CONFIG = {
   // fallbackRouting: 'off',
   // iconsExcludeBlocks: [],
   decorateArea,
+  jarvis: {
+    id: 'edu',
+    version: '1.0',
+    onDemand: false,
+  },
   // brought over from cc
   stage: {
     pdfViewerClientId: 'dc9db92aa7c64f07947d63bb41dc4887',
