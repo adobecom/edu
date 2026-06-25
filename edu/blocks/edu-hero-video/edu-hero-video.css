@@ -6,6 +6,23 @@
     margin: auto;
     display: none;
   }
+
+  &.constrained-width {
+    max-width: 1200px;
+    margin: auto;
+  }
+
+  &.s-rounded-corners video {
+    border-radius: 4px;
+  }
+
+  &.m-rounded-corners video {
+    border-radius: 8px;
+  }
+
+  &.l-rounded-corners video {
+    border-radius: 16px;
+  }
 }
 
 /* mobile ONLY */
