@@ -118,7 +118,7 @@ const CONFIG = {
     be_fr: { ietf: 'fr-BE', tk: 'vrk5vyv.css', base: 'fr' },
     be_en: { ietf: 'en-BE', tk: 'pps7abe.css', base: '' },
     be_nl: { ietf: 'nl-BE', tk: 'cya6bri.css' },
-    cy_en: { ietf: 'en-CY', tk: 'pps7abe.css' },
+    cy_en: { ietf: 'en-CY', tk: 'pps7abe.css', base: '' },
     dk: { ietf: 'da-DK', tk: 'aaz7dvd.css' },
     de: { ietf: 'de-DE', tk: 'vin7zsi.css' },
     ee: { ietf: 'et-EE', tk: 'aaz7dvd.css' },
