@@ -105,7 +105,7 @@ const CONFIG = {
     // Americas
     ar: { ietf: 'es-AR', tk: 'oln4yqj.css' },
     br: { ietf: 'pt-BR', tk: 'inq1xob.css' },
-    ca: { ietf: 'en-CA', tk: 'pps7abe.css' },
+    ca: { ietf: 'en-CA', tk: 'pps7abe.css', base: '' },
     ca_fr: { ietf: 'fr-CA', tk: 'vrk5vyv.css', base: 'fr' },
     cl: { ietf: 'es-CL', tk: 'oln4yqj.css' },
     co: { ietf: 'es-CO', tk: 'oln4yqj.css' },
@@ -125,7 +125,7 @@ const CONFIG = {
     es: { ietf: 'es-ES', tk: 'oln4yqj.css' },
     fr: { ietf: 'fr-FR', tk: 'vrk5vyv.css' },
     gr_en: { ietf: 'en-GR', tk: 'pps7abe.css', base: '' },
-    ie: { ietf: 'en-GB', tk: 'pps7abe.css' },
+    ie: { ietf: 'en-GB', tk: 'pps7abe.css', base: '' },
     il_en: { ietf: 'en-IL', tk: 'pps7abe.css', base: '' },
     it: { ietf: 'it-IT', tk: 'bbf5pok.css' },
     lv: { ietf: 'lv-LV', tk: 'aaz7dvd.css' },
@@ -134,7 +134,7 @@ const CONFIG = {
     lu_en: { ietf: 'en-LU', tk: 'pps7abe.css', base: '' },
     lu_fr: { ietf: 'fr-LU', tk: 'vrk5vyv.css', base: 'fr' },
     hu: { ietf: 'hu-HU', tk: 'aaz7dvd.css' },
-    mt: { ietf: 'en-MT', tk: 'pps7abe.css' },
+    mt: { ietf: 'en-MT', tk: 'pps7abe.css', base: '' },
     mena_en: { ietf: 'en', tk: 'pps7abe.css', base: '' },
     nl: { ietf: 'nl-NL', tk: 'cya6bri.css' },
     no: { ietf: 'no-NO', tk: 'aaz7dvd.css' },
@@ -169,10 +169,10 @@ const CONFIG = {
     id_en: { ietf: 'en', tk: 'pps7abe.css', base: '' },
     my_ms: { ietf: 'ms', tk: 'sxj4tvo.css' },
     my_en: { ietf: 'en-GB', tk: 'pps7abe.css', base: '' },
-    nz: { ietf: 'en-GB', tk: 'pps7abe.css' },
+    nz: { ietf: 'en-GB', tk: 'pps7abe.css', base: '' },
     ph_en: { ietf: 'en', tk: 'pps7abe.css', base: '' },
     ph_fil: { ietf: 'fil-PH', tk: 'ict8rmp.css' },
-    sg: { ietf: 'en-SG', tk: 'pps7abe.css' },
+    sg: { ietf: 'en-SG', tk: 'pps7abe.css', base: '' },
     th_en: { ietf: 'en', tk: 'pps7abe.css', base: '' },
     in_hi: { ietf: 'hi', tk: 'aaa8deh.css' },
     th_th: { ietf: 'th', tk: 'lqo2bst.css' },
@@ -184,8 +184,8 @@ const CONFIG = {
     // Langstore Support.
     langstore: { ietf: 'en-US', tk: 'hah7vzn.css' },
     // geo expansion MWPW-125686
-    za: { ietf: 'en-GB', tk: 'pps7abe.css' }, // South Africa (GB English)
-    ng: { ietf: 'en-GB', tk: 'pps7abe.css' }, // Nigeria (GB English)
+    za: { ietf: 'en-GB', tk: 'pps7abe.css', base: '' }, // South Africa (GB English)
+    ng: { ietf: 'en-GB', tk: 'pps7abe.css', base: '' }, // Nigeria (GB English)
     cr: { ietf: 'es-419', tk: 'oln4yqj.css' }, // Costa Rica (Spanish Latin America)
     ec: { ietf: 'es-419', tk: 'oln4yqj.css' }, // Ecuador (Spanish Latin America)
     pr: { ietf: 'es-419', tk: 'oln4yqj.css' }, // Puerto Rico (Spanish Latin America)
@@ -197,7 +197,7 @@ const CONFIG = {
     kw_en: { ietf: 'en-GB', tk: 'pps7abe.css', base: '' }, // Kuwait (GB English)
     qa_en: { ietf: 'en-GB', tk: 'pps7abe.css', base: '' }, // Qatar (GB English)
     gr_el: { ietf: 'el', tk: 'fnx0rsr.css' }, // Greece (Greek)
-    vn_en: { ietf: 'en-GB', tk: 'hah7vzn.css' },
+    vn_en: { ietf: 'en-GB', tk: 'hah7vzn.css', base: '' },
     vn_vi: { ietf: 'vi', tk: 'qxw8hzm.css' },
     cis_ru: { ietf: 'ru', tk: 'qxw8hzm.css' },
     cis_en: { ietf: 'en', tk: 'pps7abe.css', base: '' },
