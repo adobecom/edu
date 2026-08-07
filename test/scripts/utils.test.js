@@ -42,4 +42,22 @@ describe('Libs', () => {
     const libs = setLibs('/libs', location);
     expect(libs).to.equal('https://awesome--milo--forkedowner.aem.live/libs');
   });
+
+  it('Defaults to stage origin libs on stage', () => {
+    const location = {
+      hostname: 'www.stage.adobe.com',
+      search: '',
+    };
+    const libs = setLibs('/libs', location);
+    expect(libs).to.equal('/libs');
+  });
+
+  it('Supports milolibs query param override on stage', () => {
+    const location = {
+      hostname: 'www.stage.adobe.com',
+      search: '?milolibs=stage',
+    };
+    const libs = setLibs('/libs', location);
+    expect(libs).to.equal('https://stage--milo--adobecom.aem.live/libs');
+  });
 });
