@@ -37,7 +37,7 @@
     "axe-html-reporter": "2.2.11",
     "axios": "^1.18.0",
     "chai": "^5.3.3",
-    "chalk": "6.0.0",
+    "chalk": "4.1.2",
     "commander": "12.1.0",
     "eslint": "8.11.0",
     "eslint-config-airbnb-base": "^15.0.0",
