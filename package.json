@@ -24,6 +24,9 @@
     "url": "https://github.com/adobecom/college/issues"
   },
   "homepage": "https://github.com/adobecom/college#readme",
+  "dependencies": {
+    "@octokit/rest": "^20.0.2"
+  },
   "devDependencies": {
     "@axe-core/playwright": "4.10.0",
     "@babel/core": "7.29.7",
