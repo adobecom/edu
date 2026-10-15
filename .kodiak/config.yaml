@@ -6,7 +6,7 @@ version: 1.0
 # the Service Registry Portal https://adobe.service-now.com/service_registry_portal.do#/search
 # You should NOT leave this default!
 snow:
-  - id: 546356 # Milo College Default https://adobe.service-now.com/service_registry_portal.do#/service/546356
+  - id: 599180 # adboe.com Education https://adobe.service-now.com/service_registry_portal.do#/service/599180
 
 notifications:
   jira:
@@ -25,6 +25,12 @@ notifications:
           value: "Unicorn" # Put your team name here; it must be a valid team in Jira.
         watchers: # Everyone who is an admin on your repository should be a watcher.
           - casalino
+          - yolles
+          - dstrong
+          - methomas
+          - all42238
+          - all46558
+          - maxn
         labels: # You can add additional labels to your tickets here. Do not delete/change the first three.
           - "OriginatingProcess=Kodiak"
           - "security"
