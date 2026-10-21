@@ -5,3 +5,7 @@ updates:
     target-branch: "stage"
     schedule:
       interval: "weekly"
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-patch
