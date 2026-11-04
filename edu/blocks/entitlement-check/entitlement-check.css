@@ -1,0 +1,271 @@
+.dialog-modal.entitlement-check-modal {
+  width: 338px;
+  max-width: calc(100% - 32px);
+  border-radius: 16px;
+}
+
+.entitlement-check-modal .section,
+.entitlement-check-modal .section > .content {
+  margin: 0;
+  padding: 0;
+}
+
+.dialog-modal.entitlement-check-modal button.dialog-close {
+  top: 16px;
+  right: 16px;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 0;
+}
+
+.entitlement-check-modal .dialog-close circle {
+  fill: transparent;
+}
+
+.entitlement-check-modal .dialog-close line {
+  stroke: #2c2c2c;
+}
+
+.entitlement-check {
+  color: #2c2c2c;
+  text-align: center;
+  font-family: var(--body-font-family, "Adobe Clean", sans-serif);
+}
+
+.entitlement-check *,
+.entitlement-check *::before,
+.entitlement-check *::after {
+  box-sizing: border-box;
+}
+
+.entitlement-check [hidden] {
+  display: none;
+}
+
+.entitlement-check p {
+  margin: 0;
+}
+
+.entitlement-check-intro {
+  padding: 60px 19px 0;
+}
+
+.entitlement-check .entitlement-check-heading {
+  max-width: 500px;
+  margin: 0 auto 12px;
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.25;
+  letter-spacing: -0.03em;
+}
+
+.entitlement-check-intro .entitlement-check-heading {
+  max-width: 423px;
+}
+
+.entitlement-check-description {
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.entitlement-check-fields {
+  padding: 24px 19px 36px;
+  border-radius: 16px;
+  background: #f6f6f6;
+  text-align: start;
+}
+
+.entitlement-check label {
+  display: block;
+  margin-bottom: 8px;
+  color: #535353;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.entitlement-check input {
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  padding: 9px 16px;
+  border: 1px solid #8a8a8a;
+  border-radius: 4px;
+  background: #fff;
+  color: #2c2c2c;
+  font: inherit;
+  font-size: 16px;
+  line-height: 20px;
+}
+
+.entitlement-check input::placeholder {
+  color: #6e6e6e;
+}
+
+.entitlement-check input[aria-invalid="true"] {
+  border-color: #d31510;
+}
+
+.entitlement-check a {
+  color: #1473e6;
+  text-decoration: underline;
+}
+
+.entitlement-check-legal a {
+  color: #0054b6;
+}
+
+.entitlement-check input:focus-visible,
+.entitlement-check a:focus-visible,
+.entitlement-check button:focus-visible {
+  outline: 2px solid #1473e6;
+  outline-offset: 3px;
+}
+
+.entitlement-check .entitlement-check-error {
+  margin-top: 12px;
+  color: #d31510;
+  font-size: 14px;
+  line-height: 21px;
+}
+
+.entitlement-check-error::before {
+  content: "!";
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-inline-end: 8px;
+  border-radius: 50%;
+  background: #d31510;
+  color: #fff;
+  font-weight: 700;
+}
+
+.entitlement-check-legal {
+  margin-top: 12px;
+  color: #535353;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.entitlement-check .con-button {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  margin: 18px auto 0;
+  padding: 9px 18px;
+  border: 0;
+  border-radius: 20px;
+  background: #3b63fb;
+  color: #fff;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 20px;
+  text-align: center;
+  text-decoration: none;
+  white-space: normal;
+  cursor: pointer;
+}
+
+.entitlement-check button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.entitlement-check-status {
+  color: #535353;
+  font-size: 14px;
+  line-height: 21px;
+  text-align: center;
+}
+
+.entitlement-check-result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 390px;
+  padding: 60px 24px;
+}
+
+.entitlement-check[data-state="success"] .entitlement-check-result {
+  min-height: 431px;
+}
+
+.entitlement-check-result .entitlement-check-heading {
+  margin-bottom: 16px;
+}
+
+.entitlement-check-result .entitlement-check-description {
+  max-width: 501px;
+  font-size: 20px;
+}
+
+.entitlement-check-redirect {
+  margin-top: 8px;
+  color: #444;
+  font-size: 18px;
+  line-height: 27px;
+}
+
+.entitlement-check-continue {
+  margin-top: 28px;
+  font-size: 16px;
+  line-height: 24px;
+  overflow-wrap: anywhere;
+}
+
+.entitlement-check-result .con-button {
+  margin-top: 28px;
+}
+
+.entitlement-check-checkmark {
+  display: block;
+  width: 32px;
+  height: 32px;
+  margin-bottom: 32px;
+}
+
+.entitlement-check-checkmark::after {
+  content: "";
+  display: block;
+  width: 24px;
+  height: 13px;
+  margin-top: 4px;
+  border-bottom: 4px solid #05834e;
+  border-left: 4px solid #05834e;
+  transform: rotate(-45deg);
+}
+
+html[dir="rtl"] .entitlement-check-modal button.dialog-close {
+  right: auto;
+  left: 16px;
+}
+
+@media (min-width: 600px) {
+  .dialog-modal.entitlement-check-modal {
+    width: 715px;
+  }
+
+  .entitlement-check-intro {
+    padding: 36px 52px 0;
+  }
+
+  .entitlement-check .entitlement-check-heading {
+    font-size: 28px;
+  }
+
+  .entitlement-check-fields {
+    margin: 0 52px;
+    padding: 24px 0 36px;
+  }
+
+  .entitlement-check-result,
+  .entitlement-check[data-state="success"] .entitlement-check-result {
+    min-height: 350px;
+    padding: 48px 52px;
+  }
+}
