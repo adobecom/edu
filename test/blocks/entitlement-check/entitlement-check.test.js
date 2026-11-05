@@ -5,6 +5,7 @@ import init from '../../../edu/blocks/entitlement-check/entitlement-check.js';
 const mockLibs = '/test/blocks/entitlement-check/mocks';
 const { setConfig } = await import(`${mockLibs}/utils/utils.js`);
 const fixture = await fetch('/test/blocks/entitlement-check/fragment.plain.html').then((response) => response.text());
+const personalEmailError = 'Make sure to use your school email, not your personal email.';
 
 describe('Entitlement check', () => {
   let modal;
@@ -78,11 +79,88 @@ describe('Entitlement check', () => {
       expect(block.querySelector('[role="alert"]').textContent).to.equal(
         email ? 'Enter a valid email address.' : 'This field is required.',
       );
-      input.value = 'student@gmail.com';
+      input.value = 'student@school.example.org';
       input.dispatchEvent(new Event('input'));
       expect(input.hasAttribute('aria-invalid')).to.equal(false);
       expect(block.querySelector('[role="alert"]').hidden).to.equal(true);
     });
+  });
+
+  it('blocks every listed personal domain, including mixed case, tags, and surrounding whitespace', () => {
+    const domains = [
+      'gmail.com', 'googlemail.com',
+      'yahoo.com', 'yahoo.co.in', 'yahoo.in', 'ymail.com', 'rocketmail.com',
+      'outlook.com', 'outlook.in', 'hotmail.com', 'hotmail.co.in', 'live.com', 'live.in', 'msn.com',
+      'rediffmail.com', 'rediff.com',
+      'icloud.com', 'me.com', 'mac.com',
+      'zoho.com', 'zohomail.in', 'zohomail.com',
+      'protonmail.com', 'proton.me',
+      'aol.com', 'mail.com', 'gmx.com', 'yandex.com', 'indiatimes.com', 'sify.com', 'tutanota.com',
+    ];
+    const input = block.querySelector('input');
+    const form = block.querySelector('form');
+    domains.forEach((domain) => {
+      input.value = ` student+tag@${domain.toUpperCase()} `;
+      form.requestSubmit();
+      expect(request.called, domain).to.equal(false);
+      expect(block.querySelector('[role="alert"]').textContent, domain).to.equal(personalEmailError);
+    });
+    expect(input.getAttribute('aria-invalid')).to.equal('true');
+    expect(document.activeElement).to.equal(input);
+    expect(block.dataset.state).to.equal('form');
+    expect(block.querySelector('button').disabled).to.equal(false);
+    expect(clock.countTimers()).to.equal(0);
+  });
+
+  ['gmail.com.school.example.org', 'notgmail.com', 'students.gmail.com'].forEach((domain) => {
+    it(`allows the unlisted domain ${domain} rather than matching a substring`, async () => {
+      await submit(`student@${domain}`);
+      expect(request.calledOnce).to.equal(true);
+      expect(block.dataset.state).to.equal('success');
+    });
+  });
+
+  it('uses the authored personal-email message and allows correction and resubmission', async () => {
+    close();
+    modal.remove();
+    const message = 'Please enter your institution email address.';
+    await mount(true, fixture.replace(personalEmailError, message));
+    await submit('student@gmail.com');
+    expect(block.querySelector('[role="alert"]').textContent).to.equal(message);
+    expect(request.called).to.equal(false);
+    const input = block.querySelector('input');
+    input.value = 'student@school.example.org';
+    input.dispatchEvent(new Event('input'));
+    expect(block.querySelector('[role="alert"]').hidden).to.equal(true);
+    expect(input.hasAttribute('aria-invalid')).to.equal(false);
+    await submit();
+    expect(request.calledOnce).to.equal(true);
+    expect(block.dataset.state).to.equal('success');
+  });
+
+  it('keeps existing fragments usable with the requested default when the optional message row is absent', async () => {
+    close();
+    modal.remove();
+    await mount(true, fixture.replace(
+      `<div><div>personal-email-error</div><div>${personalEmailError}</div></div>`,
+      '',
+    ));
+    await submit('student@gmail.com');
+    expect(block.querySelector('[role="alert"]').textContent).to.equal(personalEmailError);
+    expect(request.called).to.equal(false);
+    expect(window.lana.log.called).to.equal(false);
+  });
+
+  it('reports an empty authored personal-email message as invalid configuration', async () => {
+    close();
+    modal.innerHTML = fixture.replace(personalEmailError, ' ');
+    block = modal.querySelector('.entitlement-check');
+    await init(block).then(
+      () => { throw new Error('Expected invalid authoring to fail.'); },
+      (error) => expect(error.message).to.include('authoring configuration'),
+    );
+    expect(window.lana.log.calledOnce).to.equal(true);
+    expect(request.called).to.equal(false);
   });
 
   ['stage', 'local', 'page', 'live', 'prod'].forEach((env) => {
@@ -91,12 +169,12 @@ describe('Entitlement check', () => {
       modal.remove();
       setConfig({ env: { name: env } });
       await mount();
-      await submit(' student@gmail.com ');
+      await submit(' student@school.example.org ');
       const [url, options] = request.firstCall.args;
       expect(url).to.equal(`https://edu-org${env === 'prod' ? '' : '-stage'}.adobe.io/v1/entitlements`);
       expect(options.method).to.equal('POST');
       expect(options.headers).to.deep.equal({ 'Content-Type': 'application/json', 'x-api-key': 'acom-education' });
-      expect(JSON.parse(options.body)).to.deep.equal({ email: 'student@gmail.com', offerId: '92645C312E8ADE0DB7071A82AD389C8E' });
+      expect(JSON.parse(options.body)).to.deep.equal({ email: 'student@school.example.org', offerId: '92645C312E8ADE0DB7071A82AD389C8E' });
       expect(options.signal.aborted).to.equal(false);
       expect(block.dataset.state).to.equal('success');
     });
@@ -117,7 +195,7 @@ describe('Entitlement check', () => {
       expect(document.activeElement).to.equal(block.querySelector('h2'));
       expect(modal.getAttribute('aria-label')).to.include('Congratulations!');
       expect(clock.countTimers()).to.equal(1);
-      await clock.tickAsync(9999);
+      await clock.tickAsync(1999);
       expect(block.isConnected).to.equal(true);
       expect(clock.countTimers()).to.equal(1);
       close();

@@ -60,7 +60,11 @@ test.beforeEach(async ({ page }) => {
   test(`${name}: validation, rejection, success, accessibility, and dismissal`, async ({ page }) => {
     await page.setViewportSize({ width, height });
     let status = 'NOT_ELIGIBLE';
-    await page.route(service, (route) => route.fulfill({ json: { status }, headers: { 'access-control-allow-origin': '*' } }));
+    let requests = 0;
+    await page.route(service, (route) => {
+      requests += 1;
+      return route.fulfill({ json: { status }, headers: { 'access-control-allow-origin': '*' } });
+    });
     await open(page);
     // Axe needs running browser timers; pause only after the final scan.
     await page.clock.install({ time: new Date('2026-01-01T00:00:00Z') });
@@ -87,7 +91,16 @@ test.beforeEach(async ({ page }) => {
     expect(await formLayout(page)).toEqual(layout);
     await input.press('Enter');
     await expect(page.getByRole('alert')).toHaveText('Enter a valid email address.');
-    await input.fill('student@gmail.com');
+    await input.fill('student+tag@GMAIL.COM');
+    await input.press('Enter');
+    await expect(page.getByRole('alert')).toHaveText('Make sure to use your school email, not your personal email.');
+    await expect(input).toHaveAttribute('aria-invalid', 'true');
+    await expect(input).toBeFocused();
+    expect(requests).toBe(0);
+    expect(await formLayout(page)).toEqual(layout);
+    await checkAccessibility(page);
+    await input.fill('student@school.example.org');
+    await expect(page.locator('.entitlement-check-error')).toBeHidden();
     await input.press('Enter');
     await expect(page.locator('.entitlement-check')).toHaveAttribute('data-state', 'rejected');
     await expect(page.getByRole('link', { name: 'Get my free trial' })).toHaveAttribute('href', 'https://www.adobe.com/creativecloud/start-with-free-creativecloud.html');
@@ -136,7 +149,7 @@ test.beforeEach(async ({ page }) => {
     await checkAccessibility(page);
     await page.clock.pauseAt(new Date(await page.evaluate(() => Date.now()) + 1000));
     await page.getByRole('button', { name: 'Close', exact: true }).click();
-    await page.clock.runFor(10000);
+    await page.clock.runFor(2000);
     await expect(page).toHaveURL(new RegExp(`${fixture}$`));
     await expect(page.getByRole('dialog')).toHaveCount(0);
   });
@@ -164,7 +177,7 @@ test('long validation copy remains reachable on a narrow, short viewport', async
   ))).toBe(true);
 });
 
-test('success redirects only after ten seconds to the computed domain', async ({ page }) => {
+test('success redirects only after two seconds to the computed domain', async ({ page }) => {
   await page.route(service, (route) => route.fulfill({ json: { status: 'HAS_ACCESS' }, headers: { 'access-control-allow-origin': '*' } }));
   await page.route('https://adobe.com/apps/a/school.example.org', (route) => route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Mock destination</title>' }));
   await open(page);
@@ -172,7 +185,7 @@ test('success redirects only after ten seconds to the computed domain', async ({
   await page.getByRole('textbox', { name: 'College email address' }).fill('student@school.example.org');
   await page.getByRole('button', { name: 'Check eligibility' }).click();
   await expect(page.locator('.entitlement-check')).toHaveAttribute('data-state', 'success');
-  await page.clock.runFor(9999);
+  await page.clock.runFor(1999);
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.clock.runFor(1);
   await expect(page).toHaveURL('https://adobe.com/apps/a/school.example.org');

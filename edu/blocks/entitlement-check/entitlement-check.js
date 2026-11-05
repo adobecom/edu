@@ -1,6 +1,16 @@
 import { getLibs } from '../../scripts/scripts.js';
 
 const OFFER_ID = '92645C312E8ADE0DB7071A82AD389C8E';
+const PERSONAL_EMAIL_DOMAINS = new Set([
+  'gmail.com', 'googlemail.com',
+  'yahoo.com', 'yahoo.co.in', 'yahoo.in', 'ymail.com', 'rocketmail.com',
+  'outlook.com', 'outlook.in', 'hotmail.com', 'hotmail.co.in', 'live.com', 'live.in', 'msn.com',
+  'rediffmail.com', 'rediff.com',
+  'icloud.com', 'me.com', 'mac.com',
+  'zoho.com', 'zohomail.in', 'zohomail.com',
+  'protonmail.com', 'proton.me',
+  'aol.com', 'mail.com', 'gmx.com', 'yandex.com', 'indiatimes.com', 'sify.com', 'tutanota.com',
+]);
 const REQUIRED_KEYS = [
   'form-heading', 'form-description', 'email-label', 'email-placeholder',
   'submit-label', 'legal-copy', 'required-error', 'invalid-email-error',
@@ -21,7 +31,9 @@ function readConfig(block) {
     if (key && value) config[key.textContent.trim().toLowerCase()] = value;
   });
   const cta = config['rejected-cta']?.querySelector('a');
+  const personalEmailError = config['personal-email-error'];
   if (REQUIRED_KEYS.some((key) => !config[key]?.textContent.trim())
+    || (personalEmailError && !personalEmailError.textContent.trim())
     || !cta?.textContent.trim() || !cta.getAttribute('href')?.trim()
     || !['https:', 'http:'].includes(cta.protocol)) {
     logError('invalid authoring configuration');
@@ -78,6 +90,9 @@ export default async function init(block) {
   instance += 1;
   const id = `entitlement-check-email-${instance}`;
   const text = (key) => config[key].textContent.trim();
+  const personalEmailError = config['personal-email-error']
+    ? text('personal-email-error')
+    : 'Make sure to use your school email, not your personal email.';
   const form = document.createElement('form');
   form.noValidate = true;
   const intro = document.createElement('div');
@@ -158,7 +173,7 @@ export default async function init(block) {
     input.removeAttribute('aria-invalid');
   });
 
-  function showResult(eligible, email) {
+  function showResult(eligible, domain) {
     const prefix = eligible ? 'success' : 'rejected';
     const result = document.createElement('div');
     result.className = 'entitlement-check-result';
@@ -172,7 +187,6 @@ export default async function init(block) {
     }
     result.append(title, content(config, `${prefix}-description`, 'entitlement-check-description'));
     if (eligible) {
-      const domain = email.slice(email.lastIndexOf('@') + 1).toLowerCase();
       const destination = `https://adobe.com/apps/a/${encodeURIComponent(domain)}`;
       const continuation = content(config, 'success-cta-label', 'entitlement-check-continue');
       if (!continuation.querySelector('a')) {
@@ -202,7 +216,7 @@ export default async function init(block) {
           dispose();
           window.location.assign(destination);
         }
-      }, 10000);
+      }, 2000);
     } else {
       const link = config['rejected-cta'].querySelector('a').cloneNode(true);
       link.className = 'con-button blue entitlement-check-trial';
@@ -223,6 +237,11 @@ export default async function init(block) {
       return;
     }
     const email = input.value;
+    const domain = email.slice(email.lastIndexOf('@') + 1).toLowerCase();
+    if (PERSONAL_EMAIL_DOMAINS.has(domain)) {
+      showError(personalEmailError, true);
+      return;
+    }
     error.hidden = true;
     input.removeAttribute('aria-invalid');
     busy = true;
@@ -262,6 +281,6 @@ export default async function init(block) {
       status.textContent = '';
     }
     if (disposed || !block.isConnected || modal.dataset.closing) return;
-    showResult(['HAS_ACCESS', 'ELIGIBLE'].includes(eligibilityStatus), email);
+    showResult(['HAS_ACCESS', 'ELIGIBLE'].includes(eligibilityStatus), domain);
   });
 }
