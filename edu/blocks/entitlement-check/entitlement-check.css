@@ -17,14 +17,11 @@
   height: 32px;
   border: 0;
   border-radius: 0;
+  background: url('./close.svg') center / 16px no-repeat;
 }
 
-.entitlement-check-modal .dialog-close circle {
-  fill: transparent;
-}
-
-.entitlement-check-modal .dialog-close line {
-  stroke: #2c2c2c;
+.entitlement-check-modal .dialog-close svg {
+  visibility: hidden;
 }
 
 .entitlement-check {
@@ -71,8 +68,6 @@
 
 .entitlement-check-fields {
   padding: 24px 19px 36px;
-  border-radius: 16px;
-  background: #f6f6f6;
   text-align: start;
 }
 
@@ -80,7 +75,8 @@
   display: block;
   margin-bottom: 8px;
   color: #535353;
-  font-size: 14px;
+  font-size: 16px;
+  font-weight: 700;
   line-height: 20px;
 }
 
@@ -89,7 +85,7 @@
   min-width: 0;
   min-height: 40px;
   padding: 9px 16px;
-  border: 1px solid #8a8a8a;
+  border: 1px solid #6e6e6e;
   border-radius: 4px;
   background: #fff;
   color: #2c2c2c;
@@ -103,7 +99,7 @@
 }
 
 .entitlement-check input[aria-invalid="true"] {
-  border-color: #d31510;
+  border-color: #f00;
 }
 
 .entitlement-check a {
@@ -111,8 +107,9 @@
   text-decoration: underline;
 }
 
-.entitlement-check-legal a {
-  color: #0054b6;
+.entitlement-check-continue,
+.entitlement-check-continue a {
+  color: #444;
 }
 
 .entitlement-check input:focus-visible,
@@ -122,25 +119,27 @@
   outline-offset: 3px;
 }
 
-.entitlement-check .entitlement-check-error {
+.entitlement-check-error-slot {
+  min-height: 42px;
   margin-top: 12px;
+}
+
+.entitlement-check .entitlement-check-error {
+  position: relative;
+  padding-inline-start: 29px;
   color: #d31510;
   font-size: 14px;
   line-height: 21px;
 }
 
 .entitlement-check-error::before {
-  content: "!";
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  content: "";
+  position: absolute;
+  top: 5px;
+  inset-inline-start: 0;
   width: 16px;
   height: 16px;
-  margin-inline-end: 8px;
-  border-radius: 50%;
-  background: #d31510;
-  color: #fff;
-  font-weight: 700;
+  background: url('./error.svg') center / contain no-repeat;
 }
 
 .entitlement-check-legal {
@@ -155,7 +154,7 @@
   width: fit-content;
   max-width: 100%;
   margin: 18px auto 0;
-  padding: 9px 18px;
+  padding: 9px 18px 10px;
   border: 0;
   border-radius: 20px;
   background: #3b63fb;
@@ -163,7 +162,7 @@
   font: inherit;
   font-size: 15px;
   font-weight: 700;
-  line-height: 20px;
+  line-height: 19px;
   text-align: center;
   text-decoration: none;
   white-space: normal;
@@ -186,17 +185,26 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   min-height: 390px;
-  padding: 60px 24px;
+  padding: 84px 19px 72px;
 }
 
 .entitlement-check[data-state="success"] .entitlement-check-result {
   min-height: 431px;
+  padding-top: 72px;
 }
 
 .entitlement-check-result .entitlement-check-heading {
   margin-bottom: 16px;
+}
+
+.entitlement-check[data-state="success"] .entitlement-check-heading {
+  max-width: 202px;
+}
+
+.entitlement-check-heading-lead {
+  display: block;
 }
 
 .entitlement-check-result .entitlement-check-description {
@@ -219,7 +227,10 @@
 }
 
 .entitlement-check-result .con-button {
+  min-width: min(153px, 100%);
   margin-top: 28px;
+  font-size: 17px;
+  line-height: 21px;
 }
 
 .entitlement-check-checkmark {
@@ -227,17 +238,7 @@
   width: 32px;
   height: 32px;
   margin-bottom: 32px;
-}
-
-.entitlement-check-checkmark::after {
-  content: "";
-  display: block;
-  width: 24px;
-  height: 13px;
-  margin-top: 4px;
-  border-bottom: 4px solid #05834e;
-  border-left: 4px solid #05834e;
-  transform: rotate(-45deg);
+  background: url('./checkmark.svg') center / contain no-repeat;
 }
 
 html[dir="rtl"] .entitlement-check-modal button.dialog-close {
@@ -258,14 +259,43 @@ html[dir="rtl"] .entitlement-check-modal button.dialog-close {
     font-size: 28px;
   }
 
+  .entitlement-check-intro .entitlement-check-heading {
+    max-width: 400px;
+  }
+
+  .entitlement-check[data-state="success"] .entitlement-check-heading {
+    max-width: 500px;
+  }
+
+  .entitlement-check-heading-lead {
+    display: inline;
+  }
+
   .entitlement-check-fields {
     margin: 0 52px;
     padding: 24px 0 36px;
   }
 
-  .entitlement-check-result,
+  .entitlement-check-result {
+    min-height: 350px;
+    padding: 90px 52px 81px;
+  }
+
   .entitlement-check[data-state="success"] .entitlement-check-result {
     min-height: 350px;
-    padding: 48px 52px;
+    padding: 48px 52px 70px;
+  }
+
+  .entitlement-check-error-slot {
+    min-height: 20px;
+  }
+
+  .entitlement-check .entitlement-check-error {
+    padding-inline-start: 24px;
+    line-height: 20px;
+  }
+
+  .entitlement-check-error::before {
+    top: 2px;
   }
 }

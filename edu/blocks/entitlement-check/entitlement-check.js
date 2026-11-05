@@ -41,6 +41,26 @@ function heading(config, key) {
   const element = authored ? authored.cloneNode(true) : document.createElement('h2');
   if (!authored) element.textContent = config[key].textContent.trim();
   element.className = 'entitlement-check-heading';
+  if (key === 'success-heading' && Intl.Segmenter && !element.querySelector('br')) {
+    const [first, second] = new Intl.Segmenter(document.documentElement.lang || undefined, { granularity: 'sentence' }).segment(element.textContent);
+    if (second) {
+      // Separate the mobile lead sentence without replacing localized copy or inline markup.
+      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+      let node = walker.nextNode();
+      let offset = first.segment.length;
+      while (offset > node.length) {
+        offset -= node.length;
+        node = walker.nextNode();
+      }
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      range.setEnd(node, offset);
+      const lead = document.createElement('span');
+      lead.className = 'entitlement-check-heading-lead';
+      lead.append(range.extractContents());
+      element.prepend(lead);
+    }
+  }
   return element;
 }
 
@@ -84,6 +104,9 @@ export default async function init(block) {
   error.className = 'entitlement-check-error';
   error.setAttribute('role', 'alert');
   error.hidden = true;
+  const errorSlot = document.createElement('div');
+  errorSlot.className = 'entitlement-check-error-slot';
+  errorSlot.append(error);
   const legal = content(config, 'legal-copy', 'entitlement-check-legal');
   const submit = document.createElement('button');
   submit.type = 'submit';
@@ -92,7 +115,7 @@ export default async function init(block) {
   const status = document.createElement('p');
   status.className = 'entitlement-check-status';
   status.setAttribute('role', 'status');
-  fields.append(label, input, error, legal, submit);
+  fields.append(label, input, errorSlot, legal, submit);
   form.append(intro, fields);
   block.replaceChildren(form, status);
   block.dataset.state = 'form';
@@ -151,12 +174,29 @@ export default async function init(block) {
     if (eligible) {
       const domain = email.slice(email.lastIndexOf('@') + 1).toLowerCase();
       const destination = `https://adobe.com/apps/a/${encodeURIComponent(domain)}`;
-      const link = document.createElement('a');
-      link.href = destination;
-      link.textContent = text('success-cta-label');
-      link.className = 'entitlement-check-continue';
-      link.addEventListener('click', dispose);
-      result.append(content(config, 'success-redirect-notice', 'entitlement-check-redirect'), link);
+      const continuation = content(config, 'success-cta-label', 'entitlement-check-continue');
+      if (!continuation.querySelector('a')) {
+        const link = document.createElement('a');
+        const labelText = text('success-cta-label');
+        const destinationHost = new URL(destination).hostname;
+        const start = labelText.toLowerCase().indexOf(destinationHost);
+        if (start === -1) {
+          link.textContent = labelText;
+          continuation.replaceChildren(link);
+        } else {
+          const end = start + destinationHost.length
+            + (labelText[start + destinationHost.length] === '.' ? 1 : 0);
+          link.textContent = labelText.slice(start, end);
+          link.setAttribute('aria-label', labelText);
+          continuation.replaceChildren(labelText.slice(0, start), link, labelText.slice(end));
+        }
+      }
+      continuation.querySelectorAll('a').forEach((link) => {
+        link.href = destination;
+        link.removeAttribute('target');
+        link.addEventListener('click', dispose);
+      });
+      result.append(content(config, 'success-redirect-notice', 'entitlement-check-redirect'), continuation);
       redirectTimer = window.setTimeout(() => {
         if (!disposed && block.isConnected && !modal.dataset.closing) {
           dispose();

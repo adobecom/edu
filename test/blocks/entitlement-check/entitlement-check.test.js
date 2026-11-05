@@ -13,11 +13,11 @@ describe('Entitlement check', () => {
   let request;
   let originalLana;
 
-  async function mount(attached = true) {
+  async function mount(attached = true, markup = fixture) {
     modal = document.createElement('div');
     modal.className = 'dialog-modal';
     modal.id = 'entitlement-test';
-    modal.innerHTML = fixture;
+    modal.innerHTML = markup;
     block = modal.querySelector('.entitlement-check');
     if (attached) document.body.append(modal);
     await init(block);
@@ -109,8 +109,10 @@ describe('Entitlement check', () => {
       expect(block.dataset.state).to.equal('success');
       expect(block.querySelector('form')).to.equal(null);
       expect(block.querySelector('.entitlement-check-heading').textContent).to.include('Congratulations!');
-      const link = block.querySelector('.entitlement-check-continue');
-      expect(link.textContent).to.equal('Not redirected? Continue to Adobe.com.');
+      const link = block.querySelector('.entitlement-check-continue a');
+      expect(link.textContent).to.equal('Adobe.com.');
+      expect(link.parentElement.textContent).to.equal('Not redirected? Continue to Adobe.com.');
+      expect(link.getAttribute('aria-label')).to.equal('Not redirected? Continue to Adobe.com.');
       expect(link.href).to.equal('https://adobe.com/apps/a/school.example.org');
       expect(document.activeElement).to.equal(block.querySelector('h2'));
       expect(modal.getAttribute('aria-label')).to.include('Congratulations!');
@@ -122,6 +124,53 @@ describe('Entitlement check', () => {
       expect(clock.countTimers()).to.equal(0);
       await clock.tickAsync(1);
     });
+  });
+
+  it('preserves rich heading markup when separating the mobile lead sentence', async () => {
+    close();
+    modal.remove();
+    await mount(true, fixture.replace(
+      'Congratulations! You have free access.',
+      '<em>Congratulations!</em> You have <strong>free access.</strong>',
+    ));
+    await submit();
+    const title = block.querySelector('.entitlement-check-heading');
+    expect(title.textContent).to.equal('Congratulations! You have free access.');
+    expect(title.querySelector('.entitlement-check-heading-lead em').textContent).to.equal('Congratulations!');
+    expect(title.querySelector('strong').textContent).to.equal('free access.');
+  });
+
+  it('retains a single-sentence heading and a continuation label without the destination hostname', async () => {
+    close();
+    modal.remove();
+    await mount(true, fixture
+      .replace('Congratulations! You have free access.', 'Your access is ready.')
+      .replace('Not redirected? Continue to Adobe.com.', 'Continue to your apps'));
+    await submit();
+    expect(block.querySelector('.entitlement-check-heading').textContent).to.equal('Your access is ready.');
+    expect(block.querySelector('.entitlement-check-heading-lead')).to.equal(null);
+    const link = block.querySelector('.entitlement-check-continue a');
+    expect(link.textContent).to.equal('Continue to your apps');
+    expect(link.href).to.equal('https://adobe.com/apps/a/school.example.org');
+  });
+
+  it('preserves a partial authored continuation link but uses the computed same-tab destination', async () => {
+    close();
+    modal.remove();
+    await mount(true, fixture.replace(
+      'Not redirected? Continue to Adobe.com.',
+      'Not redirected? Continue to <a href="https://example.com" target="_blank"><em>Adobe.com.</em></a>',
+    ));
+    await submit();
+    const continuation = block.querySelector('.entitlement-check-continue');
+    const link = continuation.querySelector('a');
+    expect(continuation.textContent).to.equal('Not redirected? Continue to Adobe.com.');
+    expect(link.querySelector('em').textContent).to.equal('Adobe.com.');
+    expect(link.href).to.equal('https://adobe.com/apps/a/school.example.org');
+    expect(link.hasAttribute('target')).to.equal(false);
+    link.addEventListener('click', (event) => event.preventDefault());
+    link.click();
+    expect(clock.countTimers()).to.equal(0);
   });
 
   it('shows the authored rejected CTA without a redirect for another business status', async () => {

@@ -9,6 +9,8 @@ async function open(page) {
   await expect(page.locator('html')).toHaveAttribute('data-ready', 'true');
   await page.getByRole('link', { name: 'Check eligibility', exact: true }).click();
   await expect(page.getByRole('textbox', { name: 'College email address' })).toBeVisible();
+  await expect(page.locator('.entitlement-check')).toHaveCSS('text-align', 'center');
+  await page.evaluate(() => document.fonts.ready);
 }
 
 async function freeze(page) {
@@ -23,6 +25,22 @@ async function checkAccessibility(page) {
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
     .analyze();
   expect(results.violations).toEqual([]);
+}
+
+async function formLayout(page) {
+  return page.locator('.entitlement-check-modal').evaluate((modal) => ({
+    height: modal.getBoundingClientRect().height,
+    legal: modal.querySelector('.entitlement-check-legal').getBoundingClientRect().top,
+    submit: modal.querySelector('.entitlement-check-submit').getBoundingClientRect().top,
+  }));
+}
+
+async function relativeBox(page, selector) {
+  return page.locator(selector).evaluate((element) => {
+    const box = element.getBoundingClientRect();
+    const modal = element.closest('.entitlement-check-modal').getBoundingClientRect();
+    return { x: box.x - modal.x, y: box.y - modal.y, width: box.width, height: box.height };
+  });
 }
 
 test.beforeEach(async ({ page }) => {
@@ -44,20 +62,39 @@ test.beforeEach(async ({ page }) => {
     let status = 'NOT_ELIGIBLE';
     await page.route(service, (route) => route.fulfill({ json: { status }, headers: { 'access-control-allow-origin': '*' } }));
     await open(page);
-    await freeze(page);
+    // Axe needs running browser timers; pause only after the final scan.
+    await page.clock.install({ time: new Date('2026-01-01T00:00:00Z') });
     await checkAccessibility(page);
+    const layout = await formLayout(page);
+    const mobile = name === 'mobile';
+    const modalBox = await page.locator('.entitlement-check-modal').boundingBox();
+    expect(modalBox.width).toBe(mobile ? 338 : 715);
+    expect(layout.height).toBe(mobile ? 502 : 406);
+    const inputBox = await relativeBox(page, '.entitlement-check input');
+    expect(inputBox.x).toBe(mobile ? 19 : 52);
+    expect(inputBox.y).toBe(mobile ? 232 : 194);
+    expect(inputBox.height).toBe(40);
+    const submitBox = await relativeBox(page, '.entitlement-check-submit');
+    expect(submitBox.y).toBe(mobile ? 428 : 332);
+    expect(submitBox.height).toBe(38);
     const input = page.getByRole('textbox', { name: 'College email address' });
     await page.getByRole('button', { name: 'Check eligibility' }).click();
     await expect(page.getByRole('alert')).toHaveText('This field is required.');
     await expect(input).toBeFocused();
+    expect(await formLayout(page)).toEqual(layout);
     await checkAccessibility(page);
     await input.fill('not-an-email');
+    expect(await formLayout(page)).toEqual(layout);
     await input.press('Enter');
     await expect(page.getByRole('alert')).toHaveText('Enter a valid email address.');
     await input.fill('student@gmail.com');
     await input.press('Enter');
     await expect(page.locator('.entitlement-check')).toHaveAttribute('data-state', 'rejected');
     await expect(page.getByRole('link', { name: 'Get my free trial' })).toHaveAttribute('href', 'https://www.adobe.com/creativecloud/start-with-free-creativecloud.html');
+    const trialBox = await relativeBox(page, '.entitlement-check-trial');
+    expect(trialBox.y).toBe(mobile ? 278 : 229);
+    expect(trialBox.width).toBe(153);
+    expect(trialBox.height).toBe(40);
     await checkAccessibility(page);
     expect(await page.locator('.dialog-modal').evaluate((dialog) => (
       dialog.scrollWidth <= dialog.clientWidth
@@ -75,12 +112,56 @@ test.beforeEach(async ({ page }) => {
     await expect(page.getByRole('link', { name: 'Not redirected? Continue to Adobe.com.' }))
       .toHaveAttribute('href', 'https://adobe.com/apps/a/school.example.org');
     await expect(page.getByRole('heading', { name: 'Congratulations! You have free access.' })).toBeFocused();
+    const title = page.locator('.entitlement-check-heading');
+    const titleBox = await relativeBox(page, '.entitlement-check-heading');
+    expect(titleBox.y).toBe(mobile ? 136 : 112);
+    expect(titleBox.height).toBe(mobile ? 60 : 35);
+    const lineOffset = await title.evaluate((heading) => {
+      const lead = heading.querySelector('.entitlement-check-heading-lead');
+      const first = document.createRange();
+      first.selectNodeContents(lead);
+      const rest = document.createRange();
+      rest.selectNodeContents(heading);
+      rest.setStartAfter(lead);
+      return rest.getBoundingClientRect().y - first.getBoundingClientRect().y;
+    });
+    expect(lineOffset).toBe(mobile ? 30 : 0);
+    const continuation = page.locator('.entitlement-check-continue');
+    await expect(continuation).toHaveText('Not redirected? Continue to Adobe.com.');
+    await expect(continuation.locator('a')).toHaveText('Adobe.com.');
+    await expect(continuation).toHaveCSS('text-decoration-line', 'none');
+    await expect(continuation.locator('a')).toHaveCSS('text-decoration-line', 'underline');
+    const continueBox = await relativeBox(page, '.entitlement-check-continue');
+    expect(continueBox.y).toBe(mobile ? 335 : 256);
     await checkAccessibility(page);
+    await page.clock.pauseAt(new Date(await page.evaluate(() => Date.now()) + 1000));
     await page.getByRole('button', { name: 'Close', exact: true }).click();
     await page.clock.runFor(10000);
     await expect(page).toHaveURL(new RegExp(`${fixture}$`));
     await expect(page.getByRole('dialog')).toHaveCount(0);
   });
+});
+
+test('long validation copy remains reachable on a narrow, short viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 360 });
+  const message = 'Please enter your college email address to check eligibility. '.repeat(8).trim();
+  await page.route('**/test/blocks/entitlement-check/fragment.plain.html', async (route) => {
+    const response = await route.fetch();
+    const body = (await response.text()).replace('This field is required.', message);
+    await route.fulfill({ response, body });
+  });
+  await open(page);
+  const slot = page.locator('.entitlement-check-error-slot');
+  const initialHeight = await slot.evaluate((element) => element.clientHeight);
+  await page.getByRole('button', { name: 'Check eligibility' }).click();
+  await expect(page.getByRole('alert')).toHaveText(message);
+  expect(await slot.evaluate((element) => element.clientHeight)).toBeGreaterThan(initialHeight);
+  const submit = page.getByRole('button', { name: 'Check eligibility' });
+  await submit.scrollIntoViewIfNeeded();
+  await expect(submit).toBeInViewport();
+  expect(await page.locator('.dialog-modal').evaluate((modal) => (
+    modal.scrollWidth <= modal.clientWidth
+  ))).toBe(true);
 });
 
 test('success redirects only after ten seconds to the computed domain', async ({ page }) => {
