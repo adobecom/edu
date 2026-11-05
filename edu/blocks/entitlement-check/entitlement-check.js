@@ -281,6 +281,19 @@ export default async function init(block) {
       status.textContent = '';
     }
     if (disposed || !block.isConnected || modal.dataset.closing) return;
-    showResult(['HAS_ACCESS', 'ELIGIBLE'].includes(eligibilityStatus), domain);
+    const modalLabel = modal.getAttribute('aria-label');
+    try {
+      showResult(['HAS_ACCESS', 'ELIGIBLE'].includes(eligibilityStatus), domain);
+    } catch (e) {
+      window.clearTimeout(redirectTimer);
+      logError('result rendering failed');
+      if (disposed || !block.isConnected || modal.dataset.closing) return;
+      block.replaceChildren(form, status);
+      block.dataset.state = 'form';
+      if (modalLabel === null) modal.removeAttribute('aria-label');
+      else modal.setAttribute('aria-label', modalLabel);
+      showError(text('service-error'));
+      input.focus();
+    }
   });
 }

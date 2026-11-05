@@ -292,6 +292,62 @@ describe('Entitlement check', () => {
     expect(clock.countTimers()).to.equal(0);
   });
 
+  it('recovers from result construction failure without logging private error details', async () => {
+    const render = sinon.stub(document, 'createRange').throws(
+      new Error('Private response for student@school.example.org'),
+    );
+    await submit();
+    expect(block.dataset.state).to.equal('form');
+    expect(block.querySelector('input').value).to.equal('student@school.example.org');
+    expect(block.querySelector('[role="alert"]').textContent).to.include('Please try again.');
+    expect(block.querySelector('button').disabled).to.equal(false);
+    expect(modal.hasAttribute('aria-label')).to.equal(false);
+    expect(clock.countTimers()).to.equal(0);
+    expect(window.lana.log.calledOnce).to.equal(true);
+    expect(window.lana.log.firstCall.args).to.deep.equal([
+      'Entitlement check: result rendering failed',
+      { tags: 'entitlement-check', severity: 'error' },
+    ]);
+    render.restore();
+    await submit();
+    expect(request.callCount).to.equal(2);
+    expect(block.dataset.state).to.equal('success');
+  });
+
+  ['ELIGIBLE', 'NOT_ELIGIBLE'].forEach((status) => {
+    it(`restores the form and modal label after partially displaying ${status}`, async () => {
+      request.resolves({ ok: true, json: async () => ({ status }) });
+      modal.setAttribute('aria-label', 'Check eligibility');
+      const originalFocus = HTMLElement.prototype.focus;
+      const render = sinon.stub(HTMLElement.prototype, 'focus').callsFake(function focusResult() {
+        if (this.matches('.entitlement-check-result .entitlement-check-heading')) {
+          throw new Error('Result focus failed');
+        }
+        originalFocus.call(this);
+      });
+      await submit();
+      const input = block.querySelector('input');
+      expect(block.dataset.state).to.equal('form');
+      expect(block.querySelector('.entitlement-check-result')).to.equal(null);
+      expect(input.value).to.equal('student@school.example.org');
+      expect(input.readOnly).to.equal(false);
+      expect(document.activeElement).to.equal(input);
+      expect(block.querySelector('[role="alert"]').textContent).to.include('Please try again.');
+      expect(block.querySelector('button').disabled).to.equal(false);
+      expect(block.querySelector('form').hasAttribute('aria-busy')).to.equal(false);
+      expect(block.querySelector('[role="status"]').textContent).to.equal('');
+      expect(modal.getAttribute('aria-label')).to.equal('Check eligibility');
+      expect(window.lana.log.firstCall.args[0]).to.equal('Entitlement check: result rendering failed');
+      expect(clock.countTimers()).to.equal(0);
+      await clock.tickAsync(2000);
+      expect(block.dataset.state).to.equal('form');
+      render.restore();
+      await submit();
+      expect(request.callCount).to.equal(2);
+      expect(block.dataset.state).to.equal(status === 'ELIGIBLE' ? 'success' : 'rejected');
+    });
+  });
+
   it('announces loading and prevents duplicate requests', async () => {
     let resolve;
     request.returns(new Promise((done) => { resolve = done; }));
