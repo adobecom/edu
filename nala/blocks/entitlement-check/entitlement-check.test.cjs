@@ -19,9 +19,9 @@ async function freeze(page) {
   await page.clock.pauseAt(new Date(time.getTime() + 1000));
 }
 
-async function checkAccessibility(page) {
+async function checkAccessibility(page, scope = '.entitlement-check-modal') {
   const results = await new AxeBuilder({ page })
-    .include('.entitlement-check-modal')
+    .include(scope)
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
     .analyze();
   expect(results.violations).toEqual([]);
@@ -42,6 +42,97 @@ async function relativeBox(page, selector) {
     return { x: box.x - modal.x, y: box.y - modal.y, width: box.width, height: box.height };
   });
 }
+
+[
+  { name: 'desktop', width: 1440, height: 900 },
+  { name: 'tablet', width: 768, height: 1024 },
+  { name: 'mobile', width: 390, height: 650 },
+].forEach(({ name, width, height }) => {
+  test(`${name}: standalone page supports validation, loading, retry, results, and redirect`, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    let pendingRoute;
+    let requests = 0;
+    await page.route(service, (route) => {
+      requests += 1;
+      pendingRoute = route;
+    });
+    await page.route('https://adobe.com/apps/a/school.example.org', (route) => route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Mock destination</title>' }));
+    const loadInline = async () => {
+      await page.goto(`${fixture}?inline`);
+      await expect(page.locator('html')).toHaveAttribute('data-ready', 'true');
+      await expect(page.locator('.entitlement-check')).toHaveAttribute('data-state', 'form');
+      await page.evaluate(() => document.fonts.ready);
+    };
+    await loadInline();
+    const block = page.locator('.entitlement-check');
+    const input = block.getByRole('textbox', { name: 'College email address' });
+    const consent = block.getByRole('checkbox');
+    const submit = block.locator('.entitlement-check-submit');
+    const progress = block.locator('.spectrum-ProgressCircle');
+    const error = block.getByRole('alert');
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(page.locator('.entitlement-check-modal')).toHaveCount(0);
+    expect((await block.boundingBox()).width).toBeLessThanOrEqual(715);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await checkAccessibility(page, '.entitlement-check');
+    await submit.click();
+    await expect(error).toHaveText('This field is required.');
+    await input.fill('not-an-email');
+    await submit.click();
+    await expect(error).toHaveText('Enter a valid email address.');
+    await input.fill('student@school.example.org');
+    await submit.click();
+    await expect(error).toHaveText('Please select the checkbox to continue.');
+    await expect(consent).toBeFocused();
+    expect(requests).toBe(0);
+    await checkAccessibility(page, '.entitlement-check');
+    await page.keyboard.press('Space');
+    const initial = await submit.boundingBox();
+    await submit.click();
+    await expect(progress).toBeVisible();
+    await expect(block.locator('.entitlement-check-submit-label')).toBeHidden();
+    await expect(submit).toHaveAccessibleName('Check eligibility');
+    await expect(block.locator('form')).toHaveAttribute('aria-busy', 'true');
+    const loading = await submit.boundingBox();
+    expect(loading.width).toBe(initial.width);
+    expect(loading.height).toBe(initial.height);
+    const circle = await progress.boundingBox();
+    expect(circle.x + circle.width / 2).toBeCloseTo(loading.x + loading.width / 2, 1);
+    expect(circle.y + circle.height / 2).toBeCloseTo(loading.y + loading.height / 2, 1);
+    await page.evaluate(() => window.dispatchEvent(new CustomEvent('milo:modal:closed', { detail: { id: 'unrelated-modal' } })));
+    await expect(block.locator('form')).toHaveAttribute('aria-busy', 'true');
+    await checkAccessibility(page, '.entitlement-check');
+    await expect.poll(() => Boolean(pendingRoute)).toBe(true);
+    await pendingRoute.fulfill({ status: 503, headers: { 'access-control-allow-origin': '*' } });
+    await expect(error).toContainText('Please try again.');
+    await expect(consent).toBeChecked();
+    await expect(submit).toBeEnabled();
+    await expect(progress).toBeHidden();
+    pendingRoute = undefined;
+    await submit.click();
+    await expect.poll(() => Boolean(pendingRoute)).toBe(true);
+    await pendingRoute.fulfill({ json: { status: 'NOT_ELIGIBLE' }, headers: { 'access-control-allow-origin': '*' } });
+    await expect(block).toHaveAttribute('data-state', 'rejected');
+    await expect(block.getByRole('heading')).toBeFocused();
+    await expect(block.getByRole('link', { name: 'Get my free trial' })).toBeVisible();
+    await checkAccessibility(page, '.entitlement-check');
+    pendingRoute = undefined;
+    await loadInline();
+    await freeze(page);
+    await input.fill('student@School.Example.ORG');
+    await consent.check();
+    await submit.click();
+    await expect.poll(() => Boolean(pendingRoute)).toBe(true);
+    await pendingRoute.fulfill({ json: { status: 'ELIGIBLE' }, headers: { 'access-control-allow-origin': '*' } });
+    await expect(block).toHaveAttribute('data-state', 'success');
+    await expect(block.getByRole('heading')).toBeFocused();
+    await expect(block.locator('.entitlement-check-continue a')).toHaveAttribute('href', 'https://adobe.com/apps/a/school.example.org');
+    await page.clock.runFor(1999);
+    await expect(page).toHaveURL(new RegExp(`${fixture}\\?inline$`));
+    await page.clock.runFor(1);
+    await expect(page).toHaveURL('https://adobe.com/apps/a/school.example.org');
+  });
+});
 
 test.beforeEach(async ({ page }) => {
   // Serve real Milo under the local /libs mount; only the eligibility API is mocked.

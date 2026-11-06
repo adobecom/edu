@@ -27,6 +27,8 @@
 }
 
 .entitlement-check {
+  max-width: 715px;
+  margin-inline: auto;
   color: #2c2c2c;
   text-align: center;
   font-family: var(--body-font-family, "Adobe Clean", sans-serif);

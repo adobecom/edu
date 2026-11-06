@@ -14,9 +14,9 @@ describe('Entitlement check', () => {
   let request;
   let originalLana;
 
-  async function mount(attached = true, markup = fixture) {
+  async function mount(attached = true, markup = fixture, inModal = true) {
     modal = document.createElement('div');
-    modal.className = 'dialog-modal';
+    modal.className = inModal ? 'dialog-modal' : 'entitlement-test-page';
     modal.id = 'entitlement-test';
     modal.innerHTML = markup;
     block = modal.querySelector('.entitlement-check');
@@ -46,6 +46,7 @@ describe('Entitlement check', () => {
 
   afterEach(() => {
     close();
+    window.dispatchEvent(new Event('pagehide'));
     modal.remove();
     clock.restore();
     sinon.restore();
@@ -550,5 +551,86 @@ describe('Entitlement check', () => {
     );
     expect(window.lana.log.calledOnce).to.equal(true);
     expect(request.called).to.equal(false);
+  });
+
+  it('validates email and consent, recovers from failure, and renders rejection directly on the page', async () => {
+    close();
+    modal.remove();
+    await mount(true, fixture, false);
+    expect(modal.classList.contains('entitlement-check-modal')).to.equal(false);
+    await submit('', false);
+    expect(block.querySelector('[role="alert"]').textContent).to.equal('This field is required.');
+    await submit('student@school.example.org', false);
+    expect(block.querySelector('[role="alert"]').textContent).to.equal('Please select the checkbox to continue.');
+    expect(request.called).to.equal(false);
+    request.onFirstCall().resolves({ ok: false });
+    await submit();
+    expect(block.dataset.state).to.equal('form');
+    expect(block.querySelector('[role="alert"]').textContent).to.include('Please try again.');
+    expect(block.querySelector('button').disabled).to.equal(false);
+    request.resolves({ ok: true, json: async () => ({ status: 'NOT_ELIGIBLE' }) });
+    await submit();
+    expect(block.dataset.state).to.equal('rejected');
+    expect(document.activeElement).to.equal(block.querySelector('h2'));
+    expect(modal.hasAttribute('aria-label')).to.equal(false);
+    expect(block.querySelector('.entitlement-check-trial').textContent).to.equal('Get my free trial');
+  });
+
+  it('renders success inline and ignores unrelated modal closure during its redirect delay', async () => {
+    close();
+    modal.remove();
+    await mount(true, fixture, false);
+    await submit('student@School.Example.ORG');
+    expect(block.dataset.state).to.equal('success');
+    expect(block.querySelector('.entitlement-check-continue a').href).to.equal('https://adobe.com/apps/a/school.example.org');
+    expect(document.activeElement).to.equal(block.querySelector('h2'));
+    close('another-modal');
+    await clock.tickAsync(1999);
+    expect(clock.countTimers()).to.equal(1);
+    window.dispatchEvent(new Event('pagehide'));
+    expect(clock.countTimers()).to.equal(0);
+  });
+
+  it('ignores modal closure inline but aborts its pending request on page exit', async () => {
+    close();
+    modal.remove();
+    await mount(true, fixture, false);
+    let resolve;
+    request.returns(new Promise((done) => { resolve = done; }));
+    await submit();
+    close();
+    expect(request.firstCall.args[1].signal.aborted).to.equal(false);
+    window.dispatchEvent(new Event('pagehide'));
+    expect(request.firstCall.args[1].signal.aborted).to.equal(true);
+    resolve({ ok: true, json: async () => ({ status: 'ELIGIBLE' }) });
+    await clock.tickAsync(0);
+    expect(block.dataset.state).to.equal('form');
+    expect(block.querySelector('.spectrum-ProgressCircle').hidden).to.equal(true);
+    expect(clock.countTimers()).to.equal(0);
+    expect(window.lana.log.called).to.equal(false);
+  });
+
+  ['ELIGIBLE', 'NOT_ELIGIBLE'].forEach((status) => {
+    it(`recovers from ${status} result focus failure outside a modal`, async () => {
+      close();
+      modal.remove();
+      await mount(true, fixture, false);
+      request.resolves({ ok: true, json: async () => ({ status }) });
+      const originalFocus = HTMLElement.prototype.focus;
+      const render = sinon.stub(HTMLElement.prototype, 'focus').callsFake(function focusResult() {
+        if (this.matches('.entitlement-check-result .entitlement-check-heading')) throw new Error('Result focus failed');
+        originalFocus.call(this);
+      });
+      await submit();
+      expect(block.dataset.state).to.equal('form');
+      expect(block.querySelector('[role="alert"]').textContent).to.include('Please try again.');
+      expect(document.activeElement).to.equal(block.querySelector('input'));
+      expect(modal.hasAttribute('aria-label')).to.equal(false);
+      expect(clock.countTimers()).to.equal(0);
+      expect(window.lana.log.firstCall.args[0]).to.equal('Entitlement check: result rendering failed');
+      render.restore();
+      await submit();
+      expect(block.dataset.state).to.equal(status === 'ELIGIBLE' ? 'success' : 'rejected');
+    });
   });
 });

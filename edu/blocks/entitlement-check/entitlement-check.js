@@ -80,12 +80,8 @@ function heading(config, key) {
 export default async function init(block) {
   const config = readConfig(block);
   const modal = block.closest('.dialog-modal');
-  if (!modal) {
-    logError('missing Milo modal');
-    throw new Error('Entitlement-check must be inside a Milo modal.');
-  }
   const { getConfig } = await import(`${getLibs()}/utils/utils.js`);
-  if (modal.dataset.closing) return;
+  if (modal?.dataset.closing) return;
   const host = getConfig().env?.name === 'prod'
     ? 'https://edu-org.adobe.io' : 'https://edu-org-stage.adobe.io';
   instance += 1;
@@ -175,7 +171,7 @@ export default async function init(block) {
   form.append(intro, fields);
   block.replaceChildren(form);
   block.dataset.state = 'form';
-  modal.classList.add('entitlement-check-modal');
+  modal?.classList.add('entitlement-check-modal');
 
   let disposed = false;
   let busy = false;
@@ -185,7 +181,7 @@ export default async function init(block) {
   let errorField;
 
   function dispose(event) {
-    if (event?.type === 'milo:modal:closed' && event.detail?.id !== modal.id) return;
+    if (event?.type === 'milo:modal:closed' && (!modal || event.detail?.id !== modal.id)) return;
     controller?.abort();
     window.clearTimeout(redirectTimer);
     window.clearTimeout(requestTimer);
@@ -197,7 +193,7 @@ export default async function init(block) {
     window.removeEventListener('pagehide', dispose);
   }
 
-  window.addEventListener('milo:modal:closed', dispose);
+  if (modal) window.addEventListener('milo:modal:closed', dispose);
   window.addEventListener('pagehide', dispose);
 
   function clearError() {
@@ -265,7 +261,7 @@ export default async function init(block) {
       });
       result.append(content(config, 'success-redirect-notice', 'entitlement-check-redirect'), continuation);
       redirectTimer = window.setTimeout(() => {
-        if (!disposed && block.isConnected && !modal.dataset.closing) {
+        if (!disposed && block.isConnected && !modal?.dataset.closing) {
           dispose();
           window.location.assign(destination);
         }
@@ -277,7 +273,7 @@ export default async function init(block) {
     }
     block.replaceChildren(result);
     block.dataset.state = prefix;
-    modal.setAttribute('aria-label', title.textContent.trim());
+    modal?.setAttribute('aria-label', title.textContent.trim());
     title.focus();
   }
 
@@ -324,7 +320,7 @@ export default async function init(block) {
       if (controller.signal.aborted) throw new Error('Eligibility request aborted.');
       eligibilityStatus = data.status;
     } catch (e) {
-      if (!disposed && block.isConnected && !modal.dataset.closing) {
+      if (!disposed && block.isConnected && !modal?.dataset.closing) {
         logError('eligibility request failed');
         showError(text('service-error'));
       }
@@ -338,18 +334,18 @@ export default async function init(block) {
       form.removeAttribute('aria-busy');
       progress.hidden = true;
     }
-    if (disposed || !block.isConnected || modal.dataset.closing) return;
-    const modalLabel = modal.getAttribute('aria-label');
+    if (disposed || !block.isConnected || modal?.dataset.closing) return;
+    const modalLabel = modal?.getAttribute('aria-label') ?? null;
     try {
       showResult(['HAS_ACCESS', 'ELIGIBLE'].includes(eligibilityStatus), domain);
     } catch (e) {
       window.clearTimeout(redirectTimer);
       logError('result rendering failed');
-      if (disposed || !block.isConnected || modal.dataset.closing) return;
+      if (disposed || !block.isConnected || modal?.dataset.closing) return;
       block.replaceChildren(form);
       block.dataset.state = 'form';
-      if (modalLabel === null) modal.removeAttribute('aria-label');
-      else modal.setAttribute('aria-label', modalLabel);
+      if (modalLabel === null) modal?.removeAttribute('aria-label');
+      else modal?.setAttribute('aria-label', modalLabel);
       showError(text('service-error'));
       input.focus();
     }
