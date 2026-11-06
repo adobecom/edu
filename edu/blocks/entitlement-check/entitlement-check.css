@@ -82,7 +82,7 @@
   line-height: 20px;
 }
 
-.entitlement-check input {
+.entitlement-check input[type="email"] {
   width: 100%;
   min-width: 0;
   min-height: 40px;
@@ -96,11 +96,11 @@
   line-height: 20px;
 }
 
-.entitlement-check input::placeholder {
+.entitlement-check input[type="email"]::placeholder {
   color: #6e6e6e;
 }
 
-.entitlement-check input[aria-invalid="true"] {
+.entitlement-check input[type="email"][aria-invalid="true"] {
   border-color: #f00;
 }
 
@@ -144,11 +144,36 @@
   background: url('./error.svg') center / contain no-repeat;
 }
 
-.entitlement-check-legal {
+.entitlement-check-consent {
+  display: flex;
+  align-items: flex-start;
   margin-top: 12px;
+}
+
+.entitlement-check .entitlement-check-consent-input {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  margin: 6px 0 0;
+  padding: 0;
+  accent-color: #3b63fb;
+  cursor: pointer;
+}
+
+.entitlement-check .entitlement-check-legal {
+  min-width: 0;
+  margin: 0;
+  padding-block: 4px 5px;
+  padding-inline-start: 9px;
   color: #535353;
   font-size: 12px;
+  font-weight: 400;
   line-height: 18px;
+  cursor: pointer;
+}
+
+.entitlement-check-legal-paragraph {
+  display: block;
 }
 
 .entitlement-check .con-button {
@@ -195,17 +220,6 @@
 
 .entitlement-check form[aria-busy="true"] .entitlement-check-submit-label {
   visibility: hidden;
-}
-
-.entitlement-check-status {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-  border: 0;
 }
 
 .entitlement-check-result {

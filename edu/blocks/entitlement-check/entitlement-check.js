@@ -14,7 +14,7 @@ const PERSONAL_EMAIL_DOMAINS = new Set([
 const REQUIRED_KEYS = [
   'form-heading', 'form-description', 'email-label', 'email-placeholder',
   'submit-label', 'legal-copy', 'required-error', 'invalid-email-error',
-  'service-error', 'loading-label', 'success-heading', 'success-description',
+  'service-error', 'success-heading', 'success-description',
   'success-redirect-notice', 'success-cta-label', 'rejected-heading',
   'rejected-description', 'rejected-cta',
 ];
@@ -35,6 +35,7 @@ function readConfig(block) {
   if (REQUIRED_KEYS.some((key) => !config[key]?.textContent.trim())
     || (personalEmailError && !personalEmailError.textContent.trim())
     || (config['submit-loading-label'] && !config['submit-loading-label'].textContent.trim())
+    || (config['checkbox-error'] && !config['checkbox-error'].textContent.trim())
     || !cta?.textContent.trim() || !cta.getAttribute('href')?.trim()
     || !['https:', 'http:'].includes(cta.protocol)) {
     logError('invalid authoring configuration');
@@ -96,6 +97,8 @@ export default async function init(block) {
   const personalEmailError = config['personal-email-error']
     ? text('personal-email-error')
     : 'Make sure to use your school email, not your personal email.';
+  const checkboxError = config['checkbox-error']
+    ? text('checkbox-error') : 'Please select the checkbox to continue.';
   const form = document.createElement('form');
   form.noValidate = true;
   const intro = document.createElement('div');
@@ -125,7 +128,28 @@ export default async function init(block) {
   const errorSlot = document.createElement('div');
   errorSlot.className = 'entitlement-check-error-slot';
   errorSlot.append(error);
-  const legal = content(config, 'legal-copy', 'entitlement-check-legal');
+  const consent = document.createElement('input');
+  consent.id = `${id}-consent`;
+  consent.name = 'consent';
+  consent.type = 'checkbox';
+  consent.required = true;
+  consent.className = 'entitlement-check-consent-input';
+  consent.setAttribute('aria-describedby', error.id);
+  const legal = document.createElement('label');
+  legal.htmlFor = consent.id;
+  legal.className = 'entitlement-check-legal';
+  const legalCopy = content(config, 'legal-copy', 'entitlement-check-legal');
+  // Keep authored paragraphs and links within the label's phrasing content.
+  legalCopy.querySelectorAll('p').forEach((paragraph) => {
+    const span = document.createElement('span');
+    span.className = 'entitlement-check-legal-paragraph';
+    span.append(...paragraph.childNodes);
+    paragraph.replaceWith(span);
+  });
+  legal.append(...legalCopy.childNodes);
+  const consentRow = document.createElement('div');
+  consentRow.className = 'entitlement-check-consent';
+  consentRow.append(consent, legal);
   const submit = document.createElement('button');
   submit.type = 'submit';
   submit.className = 'con-button blue entitlement-check-submit';
@@ -150,12 +174,9 @@ export default async function init(block) {
     fill.className = 'spectrum-ProgressCircle-fill';
   });
   submit.append(progress, submitLabel);
-  const status = document.createElement('p');
-  status.className = 'entitlement-check-status';
-  status.setAttribute('role', 'status');
-  fields.append(label, input, errorSlot, legal, submit);
+  fields.append(label, input, errorSlot, consentRow, submit);
   form.append(intro, fields);
-  block.replaceChildren(form, status);
+  block.replaceChildren(form);
   block.dataset.state = 'form';
   modal.classList.add('entitlement-check-modal');
 
@@ -164,6 +185,7 @@ export default async function init(block) {
   let controller;
   let redirectTimer;
   let requestTimer;
+  let errorField;
 
   function dispose(event) {
     if (event?.type === 'milo:modal:closed' && event.detail?.id !== modal.id) return;
@@ -181,19 +203,30 @@ export default async function init(block) {
   window.addEventListener('milo:modal:closed', dispose);
   window.addEventListener('pagehide', dispose);
 
-  function showError(message, invalid = false) {
+  function clearError() {
+    error.hidden = true;
+    error.textContent = '';
+    input.removeAttribute('aria-invalid');
+    consent.removeAttribute('aria-invalid');
+    errorField = undefined;
+  }
+
+  function showError(message, invalidField) {
+    clearError();
     error.textContent = message;
     error.hidden = false;
-    if (invalid) {
-      input.setAttribute('aria-invalid', 'true');
-      input.focus();
+    errorField = invalidField;
+    if (invalidField) {
+      invalidField.setAttribute('aria-invalid', 'true');
+      invalidField.focus();
     }
   }
 
   input.addEventListener('input', () => {
-    error.hidden = true;
-    error.textContent = '';
-    input.removeAttribute('aria-invalid');
+    if (errorField !== consent) clearError();
+  });
+  consent.addEventListener('change', () => {
+    if (errorField === consent) clearError();
   });
 
   function showResult(eligible, domain) {
@@ -256,24 +289,27 @@ export default async function init(block) {
     if (busy || disposed) return;
     input.value = input.value.trim();
     if (!input.validity.valid) {
-      showError(text(input.validity.valueMissing ? 'required-error' : 'invalid-email-error'), true);
+      showError(text(input.validity.valueMissing ? 'required-error' : 'invalid-email-error'), input);
       return;
     }
     const email = input.value;
     const domain = email.slice(email.lastIndexOf('@') + 1).toLowerCase();
     if (PERSONAL_EMAIL_DOMAINS.has(domain)) {
-      showError(personalEmailError, true);
+      showError(personalEmailError, input);
       return;
     }
-    error.hidden = true;
-    input.removeAttribute('aria-invalid');
+    if (!consent.checked) {
+      showError(checkboxError, consent);
+      return;
+    }
+    clearError();
     busy = true;
     input.readOnly = true;
+    consent.disabled = true;
     submit.disabled = true;
     form.setAttribute('aria-busy', 'true');
     progress.hidden = false;
     submit.setAttribute('aria-label', submitLoadingLabel);
-    status.textContent = text('loading-label');
     controller = new AbortController();
     requestTimer = window.setTimeout(() => controller.abort(), 15000);
     let eligibilityStatus;
@@ -301,11 +337,11 @@ export default async function init(block) {
       window.clearTimeout(requestTimer);
       busy = false;
       input.readOnly = false;
+      consent.disabled = false;
       submit.disabled = false;
       form.removeAttribute('aria-busy');
       progress.hidden = true;
       submit.setAttribute('aria-label', text('submit-label'));
-      status.textContent = '';
     }
     if (disposed || !block.isConnected || modal.dataset.closing) return;
     const modalLabel = modal.getAttribute('aria-label');
@@ -315,7 +351,7 @@ export default async function init(block) {
       window.clearTimeout(redirectTimer);
       logError('result rendering failed');
       if (disposed || !block.isConnected || modal.dataset.closing) return;
-      block.replaceChildren(form, status);
+      block.replaceChildren(form);
       block.dataset.state = 'form';
       if (modalLabel === null) modal.removeAttribute('aria-label');
       else modal.setAttribute('aria-label', modalLabel);
