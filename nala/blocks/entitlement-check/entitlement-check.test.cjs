@@ -217,3 +217,76 @@ test('technical failure supports retry; backdrop close aborts a pending request'
   await page.getByRole('link', { name: 'Check eligibility', exact: true }).click();
   await expect(input).toHaveValue('');
 });
+
+[
+  { name: 'desktop', width: 1440, height: 900, motion: 'no-preference' },
+  { name: 'tablet', width: 768, height: 1024, motion: 'reduce' },
+  { name: 'mobile', width: 390, height: 650, motion: 'reduce', forcedColors: true },
+].forEach(({ name, width, height, motion, forcedColors }) => {
+  test(`${name}: CSS-only submission indicator preserves CTA layout and accessibility`, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    await page.emulateMedia({ reducedMotion: motion });
+    let pendingRoute;
+    await page.route(service, (route) => { pendingRoute = route; });
+    await open(page);
+    const input = page.getByRole('textbox', { name: 'College email address' });
+    const submit = page.locator('.entitlement-check-submit');
+    const progress = submit.locator('.spectrum-ProgressCircle');
+    const label = submit.locator('.entitlement-check-submit-label');
+    const dimensions = ({ width: w, height: h }) => ({ width: w, height: h });
+    const initial = dimensions(await submit.boundingBox());
+    await expect(progress).toBeHidden();
+    await input.fill('student@school.example.org');
+    await submit.click();
+    await expect(progress).toBeVisible();
+    await expect(submit).toBeDisabled();
+    await expect(submit).toHaveAccessibleName('Checking...');
+    await expect(progress).toHaveAttribute('aria-hidden', 'true');
+    await expect(label).toBeHidden();
+    await expect(label).toHaveText('Check eligibility');
+    await expect(page.getByRole('status')).toHaveText('Checking eligibility...');
+    await expect(page.getByRole('status')).toHaveCSS('clip-path', 'inset(50%)');
+    expect(dimensions(await page.getByRole('status').boundingBox())).toEqual({ width: 1, height: 1 });
+    expect(dimensions(await submit.boundingBox())).toEqual(initial);
+    const indicator = await relativeBox(page, '.spectrum-ProgressCircle');
+    const button = await relativeBox(page, '.entitlement-check-submit');
+    expect(indicator.width).toBe(20);
+    expect(indicator.height).toBe(20);
+    expect(indicator.x + indicator.width / 2).toBeCloseTo(button.x + button.width / 2, 1);
+    expect(indicator.y + indicator.height / 2).toBeCloseTo(button.y + button.height / 2, 1);
+    const containedMasks = await progress.locator('.spectrum-ProgressCircle-fillMask1, .spectrum-ProgressCircle-fillMask2')
+      .evaluateAll((elements) => elements.map((element) => {
+        const circle = element.closest('.spectrum-ProgressCircle');
+        return element.offsetLeft >= 0 && element.offsetTop >= 0
+          && element.offsetLeft + element.offsetWidth <= circle.clientWidth
+          && element.offsetTop + element.offsetHeight <= circle.clientHeight;
+      }));
+    expect(containedMasks).toEqual([true, true]);
+    const animations = await progress.locator('.spectrum-ProgressCircle-fills, .spectrum-ProgressCircle-fillSubMask1, .spectrum-ProgressCircle-fillSubMask2')
+      .evaluateAll((elements) => elements.map((element) => getComputedStyle(element).animationName));
+    if (motion === 'reduce') expect(animations).toEqual(['none', 'none', 'none']);
+    else animations.forEach((animation) => expect(animation).toMatch(/^entitlement-check-progress-/));
+    await checkAccessibility(page);
+    if (forcedColors) {
+      await page.emulateMedia({ forcedColors: 'active', colorScheme: 'dark' });
+      await expect(progress.locator('.spectrum-ProgressCircle-fill').first()).toHaveCSS('border-top-color', 'rgb(255, 255, 255)');
+      await expect(progress.locator('.spectrum-ProgressCircle-track')).toHaveCSS('border-top-style', 'double');
+      await expect(progress).toBeVisible();
+    }
+    await expect.poll(() => Boolean(pendingRoute)).toBe(true);
+    await pendingRoute.fulfill({ status: 503, headers: { 'access-control-allow-origin': '*' } });
+    await expect(page.getByRole('alert')).toContainText('Please try again.');
+    await expect(progress).toBeHidden();
+    await expect(label).toHaveCSS('visibility', 'visible');
+    await expect(label).toHaveText('Check eligibility');
+    await expect(submit).toHaveAccessibleName('Check eligibility');
+    await expect(submit).toBeEnabled();
+    expect(dimensions(await submit.boundingBox())).toEqual(initial);
+    pendingRoute = undefined;
+    await submit.click();
+    await expect(progress).toBeVisible();
+    await expect.poll(() => Boolean(pendingRoute)).toBe(true);
+    await pendingRoute.fulfill({ json: { status: 'NOT_ELIGIBLE' }, headers: { 'access-control-allow-origin': '*' } });
+    await expect(page.locator('.entitlement-check')).toHaveAttribute('data-state', 'rejected');
+  });
+});

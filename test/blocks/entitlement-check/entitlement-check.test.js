@@ -79,6 +79,7 @@ describe('Entitlement check', () => {
       expect(block.querySelector('[role="alert"]').textContent).to.equal(
         email ? 'Enter a valid email address.' : 'This field is required.',
       );
+      expect(block.querySelector('.spectrum-ProgressCircle').hidden).to.equal(true);
       input.value = 'student@school.example.org';
       input.dispatchEvent(new Event('input'));
       expect(input.hasAttribute('aria-invalid')).to.equal(false);
@@ -109,6 +110,7 @@ describe('Entitlement check', () => {
     expect(document.activeElement).to.equal(input);
     expect(block.dataset.state).to.equal('form');
     expect(block.querySelector('button').disabled).to.equal(false);
+    expect(block.querySelector('.spectrum-ProgressCircle').hidden).to.equal(true);
     expect(clock.countTimers()).to.equal(0);
   });
 
@@ -275,6 +277,7 @@ describe('Entitlement check', () => {
       expect(block.querySelector('input').hasAttribute('aria-invalid')).to.equal(false);
       expect(block.querySelector('[role="alert"]').textContent).to.include('Please try again.');
       expect(block.querySelector('button').disabled).to.equal(false);
+      expect(block.querySelector('.spectrum-ProgressCircle').hidden).to.equal(true);
       expect(block.querySelector('form').hasAttribute('aria-busy')).to.equal(false);
       expect(window.lana.log.firstCall.args[0]).to.equal('Entitlement check: eligibility request failed');
       await submit();
@@ -334,6 +337,7 @@ describe('Entitlement check', () => {
       expect(document.activeElement).to.equal(input);
       expect(block.querySelector('[role="alert"]').textContent).to.include('Please try again.');
       expect(block.querySelector('button').disabled).to.equal(false);
+      expect(block.querySelector('.spectrum-ProgressCircle').hidden).to.equal(true);
       expect(block.querySelector('form').hasAttribute('aria-busy')).to.equal(false);
       expect(block.querySelector('[role="status"]').textContent).to.equal('');
       expect(modal.getAttribute('aria-label')).to.equal('Check eligibility');
@@ -351,17 +355,61 @@ describe('Entitlement check', () => {
   it('announces loading and prevents duplicate requests', async () => {
     let resolve;
     request.returns(new Promise((done) => { resolve = done; }));
+    const progress = block.querySelector('.spectrum-ProgressCircle');
+    expect(progress.hidden).to.equal(true);
     await submit();
     const form = block.querySelector('form');
     expect(form.getAttribute('aria-busy')).to.equal('true');
     expect(block.querySelector('input').readOnly).to.equal(true);
     expect(block.querySelector('button').disabled).to.equal(true);
+    expect(block.querySelector('button').getAttribute('aria-label')).to.equal('Checking...');
+    expect(progress.hidden).to.equal(false);
+    expect(progress.getAttribute('aria-hidden')).to.equal('true');
     expect(block.querySelector('[role="status"]').textContent).to.equal('Checking eligibility...');
     form.requestSubmit();
     expect(request.callCount).to.equal(1);
+    expect(block.querySelectorAll('.spectrum-ProgressCircle').length).to.equal(1);
     resolve({ ok: true, json: async () => ({ status: 'ELIGIBLE' }) });
     await clock.tickAsync(0);
+    expect(progress.hidden).to.equal(true);
     expect(block.dataset.state).to.equal('success');
+  });
+
+  [undefined, 'Please wait...'].forEach((loadingLabel) => {
+    it(`uses ${loadingLabel ? 'authored' : 'default'} accessible pending CTA text and restores it after failure`, async () => {
+      close();
+      modal.remove();
+      const row = '<div><div>submit-loading-label</div><div>Checking...</div></div>';
+      await mount(true, fixture.replace(row, loadingLabel
+        ? `<div><div>submit-loading-label</div><div>${loadingLabel}</div></div>` : ''));
+      let resolve;
+      request.returns(new Promise((done) => { resolve = done; }));
+      await submit();
+      const button = block.querySelector('button');
+      expect(button.firstElementChild.classList.contains('spectrum-ProgressCircle')).to.equal(true);
+      expect(button.textContent).to.equal('Check eligibility');
+      expect(button.getAttribute('aria-label')).to.equal(loadingLabel || 'Checking...');
+      resolve({ ok: false });
+      await clock.tickAsync(0);
+      expect(button.textContent).to.equal('Check eligibility');
+      expect(button.getAttribute('aria-label')).to.equal('Check eligibility');
+      expect(button.disabled).to.equal(false);
+      expect(button.firstElementChild.hidden).to.equal(true);
+    });
+  });
+
+  it('reports an empty authored pending CTA label as invalid configuration', async () => {
+    close();
+    modal.remove();
+    await mount(true, fixture.replace(
+      '<div><div>submit-loading-label</div><div>Checking...</div></div>',
+      '<div><div>submit-loading-label</div><div> </div></div>',
+    )).then(
+      () => { throw new Error('Expected invalid authoring to fail.'); },
+      (error) => expect(error.message).to.include('authoring configuration'),
+    );
+    expect(window.lana.log.calledOnce).to.equal(true);
+    expect(request.called).to.equal(false);
   });
 
   it('times out a pending request and allows retry', async () => {
@@ -373,6 +421,7 @@ describe('Entitlement check', () => {
     expect(request.firstCall.args[1].signal.aborted).to.equal(true);
     expect(block.querySelector('[role="alert"]').textContent).to.include('Please try again.');
     expect(block.querySelector('button').disabled).to.equal(false);
+    expect(block.querySelector('.spectrum-ProgressCircle').hidden).to.equal(true);
     await submit();
     expect(block.dataset.state).to.equal('success');
   });
@@ -414,6 +463,7 @@ describe('Entitlement check', () => {
     await clock.tickAsync(0);
     expect(request.firstCall.args[1].signal.aborted).to.equal(true);
     expect(block.querySelector('button').disabled).to.equal(false);
+    expect(block.querySelector('.spectrum-ProgressCircle').hidden).to.equal(true);
     await submit();
     expect(block.dataset.state).to.equal('success');
   });

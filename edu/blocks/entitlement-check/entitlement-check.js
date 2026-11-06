@@ -34,6 +34,7 @@ function readConfig(block) {
   const personalEmailError = config['personal-email-error'];
   if (REQUIRED_KEYS.some((key) => !config[key]?.textContent.trim())
     || (personalEmailError && !personalEmailError.textContent.trim())
+    || (config['submit-loading-label'] && !config['submit-loading-label'].textContent.trim())
     || !cta?.textContent.trim() || !cta.getAttribute('href')?.trim()
     || !['https:', 'http:'].includes(cta.protocol)) {
     logError('invalid authoring configuration');
@@ -90,6 +91,8 @@ export default async function init(block) {
   instance += 1;
   const id = `entitlement-check-email-${instance}`;
   const text = (key) => config[key].textContent.trim();
+  const submitLoadingLabel = config['submit-loading-label']
+    ? text('submit-loading-label') : 'Checking...';
   const personalEmailError = config['personal-email-error']
     ? text('personal-email-error')
     : 'Make sure to use your school email, not your personal email.';
@@ -126,7 +129,27 @@ export default async function init(block) {
   const submit = document.createElement('button');
   submit.type = 'submit';
   submit.className = 'con-button blue entitlement-check-submit';
-  submit.textContent = text('submit-label');
+  submit.setAttribute('aria-label', text('submit-label'));
+  const submitLabel = document.createElement('span');
+  submitLabel.className = 'entitlement-check-submit-label';
+  submitLabel.textContent = text('submit-label');
+  const progress = document.createElement('span');
+  progress.className = 'spectrum-ProgressCircle spectrum-ProgressCircle--indeterminate';
+  progress.hidden = true;
+  progress.setAttribute('aria-hidden', 'true');
+  const track = progress.appendChild(document.createElement('span'));
+  track.className = 'spectrum-ProgressCircle-track';
+  const fills = progress.appendChild(document.createElement('span'));
+  fills.className = 'spectrum-ProgressCircle-fills';
+  [1, 2].forEach((number) => {
+    const mask = fills.appendChild(document.createElement('span'));
+    mask.className = `spectrum-ProgressCircle-fillMask${number}`;
+    const subMask = mask.appendChild(document.createElement('span'));
+    subMask.className = `spectrum-ProgressCircle-fillSubMask${number}`;
+    const fill = subMask.appendChild(document.createElement('span'));
+    fill.className = 'spectrum-ProgressCircle-fill';
+  });
+  submit.append(progress, submitLabel);
   const status = document.createElement('p');
   status.className = 'entitlement-check-status';
   status.setAttribute('role', 'status');
@@ -248,6 +271,8 @@ export default async function init(block) {
     input.readOnly = true;
     submit.disabled = true;
     form.setAttribute('aria-busy', 'true');
+    progress.hidden = false;
+    submit.setAttribute('aria-label', submitLoadingLabel);
     status.textContent = text('loading-label');
     controller = new AbortController();
     requestTimer = window.setTimeout(() => controller.abort(), 15000);
@@ -278,6 +303,8 @@ export default async function init(block) {
       input.readOnly = false;
       submit.disabled = false;
       form.removeAttribute('aria-busy');
+      progress.hidden = true;
+      submit.setAttribute('aria-label', text('submit-label'));
       status.textContent = '';
     }
     if (disposed || !block.isConnected || modal.dataset.closing) return;
