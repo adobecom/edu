@@ -446,7 +446,7 @@ describe('Entitlement check', () => {
     expect(block.querySelector('input').readOnly).to.equal(true);
     expect(block.querySelector('[type="checkbox"]').disabled).to.equal(true);
     expect(block.querySelector('button').disabled).to.equal(true);
-    expect(block.querySelector('button').getAttribute('aria-label')).to.equal('Checking...');
+    expect(block.querySelector('button').getAttribute('aria-label')).to.equal('Check eligibility');
     expect(progress.hidden).to.equal(false);
     expect(progress.getAttribute('aria-hidden')).to.equal('true');
     expect(block.querySelector('[role="status"]')).to.equal(null);
@@ -459,41 +459,27 @@ describe('Entitlement check', () => {
     expect(block.dataset.state).to.equal('success');
   });
 
-  [undefined, 'Please wait...'].forEach((loadingLabel) => {
-    it(`uses ${loadingLabel ? 'authored' : 'default'} accessible pending CTA text and restores it after failure`, async () => {
-      close();
-      modal.remove();
-      const row = '<div><div>submit-loading-label</div><div>Checking...</div></div>';
-      await mount(true, fixture.replace(row, loadingLabel
-        ? `<div><div>submit-loading-label</div><div>${loadingLabel}</div></div>` : ''));
-      let resolve;
-      request.returns(new Promise((done) => { resolve = done; }));
-      await submit();
-      const button = block.querySelector('button');
-      expect(button.firstElementChild.classList.contains('spectrum-ProgressCircle')).to.equal(true);
-      expect(button.textContent).to.equal('Check eligibility');
-      expect(button.getAttribute('aria-label')).to.equal(loadingLabel || 'Checking...');
-      resolve({ ok: false });
-      await clock.tickAsync(0);
-      expect(button.textContent).to.equal('Check eligibility');
-      expect(button.getAttribute('aria-label')).to.equal('Check eligibility');
-      expect(button.disabled).to.equal(false);
-      expect(button.firstElementChild.hidden).to.equal(true);
-    });
-  });
-
-  it('reports an empty authored pending CTA label as invalid configuration', async () => {
+  it('preserves the authored CTA name while pending and after failure', async () => {
     close();
     modal.remove();
+    const label = 'Verify college access';
     await mount(true, fixture.replace(
-      '<div><div>submit-loading-label</div><div>Checking...</div></div>',
-      '<div><div>submit-loading-label</div><div> </div></div>',
-    )).then(
-      () => { throw new Error('Expected invalid authoring to fail.'); },
-      (error) => expect(error.message).to.include('authoring configuration'),
-    );
-    expect(window.lana.log.calledOnce).to.equal(true);
-    expect(request.called).to.equal(false);
+      '<div><div>submit-label</div><div>Check eligibility</div></div>',
+      `<div><div>submit-label</div><div>${label}</div></div>`,
+    ));
+    let resolve;
+    request.returns(new Promise((done) => { resolve = done; }));
+    await submit();
+    const button = block.querySelector('button');
+    expect(button.textContent).to.equal(label);
+    expect(button.getAttribute('aria-label')).to.equal(label);
+    expect(button.firstElementChild.hidden).to.equal(false);
+    resolve({ ok: false });
+    await clock.tickAsync(0);
+    expect(button.textContent).to.equal(label);
+    expect(button.getAttribute('aria-label')).to.equal(label);
+    expect(button.disabled).to.equal(false);
+    expect(button.firstElementChild.hidden).to.equal(true);
   });
 
   it('times out a pending request and allows retry', async () => {

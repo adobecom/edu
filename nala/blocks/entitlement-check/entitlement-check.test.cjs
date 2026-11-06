@@ -272,7 +272,7 @@ test('technical failure supports retry; backdrop close aborts a pending request'
     await expect(progress).toBeVisible();
     await expect(submit).toBeDisabled();
     await expect(page.getByRole('checkbox')).toBeDisabled();
-    await expect(submit).toHaveAccessibleName('Checking...');
+    await expect(submit).toHaveAccessibleName('Check eligibility');
     await expect(progress).toHaveAttribute('aria-hidden', 'true');
     await expect(label).toBeHidden();
     await expect(label).toHaveText('Check eligibility');

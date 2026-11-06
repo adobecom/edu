@@ -34,7 +34,6 @@ function readConfig(block) {
   const personalEmailError = config['personal-email-error'];
   if (REQUIRED_KEYS.some((key) => !config[key]?.textContent.trim())
     || (personalEmailError && !personalEmailError.textContent.trim())
-    || (config['submit-loading-label'] && !config['submit-loading-label'].textContent.trim())
     || (config['checkbox-error'] && !config['checkbox-error'].textContent.trim())
     || !cta?.textContent.trim() || !cta.getAttribute('href')?.trim()
     || !['https:', 'http:'].includes(cta.protocol)) {
@@ -92,8 +91,6 @@ export default async function init(block) {
   instance += 1;
   const id = `entitlement-check-email-${instance}`;
   const text = (key) => config[key].textContent.trim();
-  const submitLoadingLabel = config['submit-loading-label']
-    ? text('submit-loading-label') : 'Checking...';
   const personalEmailError = config['personal-email-error']
     ? text('personal-email-error')
     : 'Make sure to use your school email, not your personal email.';
@@ -309,7 +306,6 @@ export default async function init(block) {
     submit.disabled = true;
     form.setAttribute('aria-busy', 'true');
     progress.hidden = false;
-    submit.setAttribute('aria-label', submitLoadingLabel);
     controller = new AbortController();
     requestTimer = window.setTimeout(() => controller.abort(), 15000);
     let eligibilityStatus;
@@ -341,7 +337,6 @@ export default async function init(block) {
       submit.disabled = false;
       form.removeAttribute('aria-busy');
       progress.hidden = true;
-      submit.setAttribute('aria-label', text('submit-label'));
     }
     if (disposed || !block.isConnected || modal.dataset.closing) return;
     const modalLabel = modal.getAttribute('aria-label');
