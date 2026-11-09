@@ -111,11 +111,6 @@
   text-decoration: underline;
 }
 
-.entitlement-check-continue,
-.entitlement-check-continue a {
-  color: #444;
-}
-
 .entitlement-check input:focus-visible,
 .entitlement-check a:focus-visible,
 .entitlement-check button:focus-visible {
@@ -234,7 +229,7 @@
 }
 
 .entitlement-check[data-state="success"] .entitlement-check-result {
-  min-height: 431px;
+  min-height: 408px;
   padding-top: 72px;
 }
 
@@ -255,25 +250,17 @@
   font-size: 20px;
 }
 
-.entitlement-check-redirect {
-  margin-top: 8px;
-  color: #444;
-  font-size: 18px;
-  line-height: 27px;
-}
-
-.entitlement-check-continue {
-  margin-top: 28px;
-  font-size: 16px;
-  line-height: 24px;
-  overflow-wrap: anywhere;
-}
-
 .entitlement-check-result .con-button {
   min-width: min(153px, 100%);
   margin-top: 28px;
   font-size: 17px;
   line-height: 21px;
+}
+
+.entitlement-check-result .entitlement-check-continue {
+  min-width: min(170px, 100%);
+  margin-top: 24px;
+  overflow-wrap: anywhere;
 }
 
 .entitlement-check-checkmark {
@@ -326,7 +313,7 @@ html[dir="rtl"] .entitlement-check-modal button.dialog-close {
 
   .entitlement-check[data-state="success"] .entitlement-check-result {
     min-height: 350px;
-    padding: 48px 52px 70px;
+    padding: 59px 52px 82px;
   }
 
   .entitlement-check-error-slot {

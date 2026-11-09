@@ -15,7 +15,7 @@ const REQUIRED_KEYS = [
   'form-heading', 'form-description', 'email-label', 'email-placeholder',
   'submit-label', 'legal-copy', 'required-error', 'invalid-email-error',
   'service-error', 'success-heading', 'success-description',
-  'success-redirect-notice', 'success-cta-label', 'rejected-heading',
+  'success-cta', 'rejected-heading',
   'rejected-description', 'rejected-cta',
 ];
 let instance = 0;
@@ -176,14 +176,12 @@ export default async function init(block) {
   let disposed = false;
   let busy = false;
   let controller;
-  let redirectTimer;
   let requestTimer;
   let errorField;
 
   function dispose(event) {
     if (event?.type === 'milo:modal:closed' && (!modal || event.detail?.id !== modal.id)) return;
     controller?.abort();
-    window.clearTimeout(redirectTimer);
     window.clearTimeout(requestTimer);
     // A cached page can be restored; leave its form usable for another attempt.
     if (event?.type === 'pagehide' && event.persisted) return;
@@ -237,35 +235,12 @@ export default async function init(block) {
     result.append(title, content(config, `${prefix}-description`, 'entitlement-check-description'));
     if (eligible) {
       const destination = `https://adobe.com/apps/a/${encodeURIComponent(domain)}`;
-      const continuation = content(config, 'success-cta-label', 'entitlement-check-continue');
-      if (!continuation.querySelector('a')) {
-        const link = document.createElement('a');
-        const labelText = text('success-cta-label');
-        const destinationHost = new URL(destination).hostname;
-        const start = labelText.toLowerCase().indexOf(destinationHost);
-        if (start === -1) {
-          link.textContent = labelText;
-          continuation.replaceChildren(link);
-        } else {
-          const end = start + destinationHost.length
-            + (labelText[start + destinationHost.length] === '.' ? 1 : 0);
-          link.textContent = labelText.slice(start, end);
-          link.setAttribute('aria-label', labelText);
-          continuation.replaceChildren(labelText.slice(0, start), link, labelText.slice(end));
-        }
-      }
-      continuation.querySelectorAll('a').forEach((link) => {
-        link.href = destination;
-        link.removeAttribute('target');
-        link.addEventListener('click', dispose);
-      });
-      result.append(content(config, 'success-redirect-notice', 'entitlement-check-redirect'), continuation);
-      redirectTimer = window.setTimeout(() => {
-        if (!disposed && block.isConnected && !modal?.dataset.closing) {
-          dispose();
-          window.location.assign(destination);
-        }
-      }, 2000);
+      const link = document.createElement('a');
+      link.className = 'con-button blue entitlement-check-continue';
+      link.textContent = text('success-cta');
+      link.href = destination;
+      link.addEventListener('click', dispose);
+      result.append(link);
     } else {
       const link = config['rejected-cta'].querySelector('a').cloneNode(true);
       link.className = 'con-button blue entitlement-check-trial';
@@ -339,7 +314,6 @@ export default async function init(block) {
     try {
       showResult(['HAS_ACCESS', 'ELIGIBLE'].includes(eligibilityStatus), domain);
     } catch (e) {
-      window.clearTimeout(redirectTimer);
       logError('result rendering failed');
       if (disposed || !block.isConnected || modal?.dataset.closing) return;
       block.replaceChildren(form);

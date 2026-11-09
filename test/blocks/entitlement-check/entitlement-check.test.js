@@ -265,26 +265,24 @@ describe('Entitlement check', () => {
   });
 
   ['HAS_ACCESS', 'ELIGIBLE'].forEach((status) => {
-    it(`shows authored success for ${status} with a computed, normalized domain link`, async () => {
+    it(`shows persistent authored success for ${status} with a computed, normalized CTA`, async () => {
       request.resolves({ ok: true, json: async () => ({ status }) });
       await submit(' student@School.Example.ORG ');
       expect(block.dataset.state).to.equal('success');
       expect(block.querySelector('form')).to.equal(null);
       expect(block.querySelector('.entitlement-check-heading').textContent).to.include('Congratulations!');
-      const link = block.querySelector('.entitlement-check-continue a');
-      expect(link.textContent).to.equal('Adobe.com.');
-      expect(link.parentElement.textContent).to.equal('Not redirected? Continue to Adobe.com.');
-      expect(link.getAttribute('aria-label')).to.equal('Not redirected? Continue to Adobe.com.');
+      const link = block.querySelector('.entitlement-check-continue');
+      expect(link.textContent).to.equal('Continue to Adobe');
+      expect(link.classList.contains('con-button')).to.equal(true);
+      expect(link.hasAttribute('target')).to.equal(false);
       expect(link.href).to.equal('https://adobe.com/apps/a/school.example.org');
       expect(document.activeElement).to.equal(block.querySelector('h2'));
       expect(modal.getAttribute('aria-label')).to.include('Congratulations!');
-      expect(clock.countTimers()).to.equal(1);
-      await clock.tickAsync(1999);
-      expect(block.isConnected).to.equal(true);
-      expect(clock.countTimers()).to.equal(1);
-      close();
       expect(clock.countTimers()).to.equal(0);
-      await clock.tickAsync(1);
+      await clock.tickAsync(60000);
+      expect(block.isConnected).to.equal(true);
+      expect(block.dataset.state).to.equal('success');
+      expect(clock.countTimers()).to.equal(0);
     });
   });
 
@@ -302,36 +300,48 @@ describe('Entitlement check', () => {
     expect(title.querySelector('strong').textContent).to.equal('free access.');
   });
 
-  it('retains a single-sentence heading and a continuation label without the destination hostname', async () => {
+  it('retains a single-sentence heading and a custom authored CTA label', async () => {
     close();
     modal.remove();
     await mount(true, fixture
       .replace('Congratulations! You have free access.', 'Your access is ready.')
-      .replace('Not redirected? Continue to Adobe.com.', 'Continue to your apps'));
+      .replace('Continue to Adobe', 'Continue to your apps'));
     await submit();
     expect(block.querySelector('.entitlement-check-heading').textContent).to.equal('Your access is ready.');
     expect(block.querySelector('.entitlement-check-heading-lead')).to.equal(null);
-    const link = block.querySelector('.entitlement-check-continue a');
+    const link = block.querySelector('.entitlement-check-continue');
     expect(link.textContent).to.equal('Continue to your apps');
     expect(link.href).to.equal('https://adobe.com/apps/a/school.example.org');
   });
 
-  it('preserves a partial authored continuation link but uses the computed same-tab destination', async () => {
+  it('uses authored link text as a single CTA with the computed same-tab destination', async () => {
     close();
     modal.remove();
     await mount(true, fixture.replace(
-      'Not redirected? Continue to Adobe.com.',
-      'Not redirected? Continue to <a href="https://example.com" target="_blank"><em>Adobe.com.</em></a>',
+      'Continue to Adobe',
+      '<a href="https://example.com" target="_blank"><em>Continue to Adobe</em></a>',
     ));
     await submit();
-    const continuation = block.querySelector('.entitlement-check-continue');
-    const link = continuation.querySelector('a');
-    expect(continuation.textContent).to.equal('Not redirected? Continue to Adobe.com.');
-    expect(link.querySelector('em').textContent).to.equal('Adobe.com.');
+    const link = block.querySelector('.entitlement-check-continue');
+    expect(link.textContent).to.equal('Continue to Adobe');
+    expect(link.querySelector('a')).to.equal(null);
     expect(link.href).to.equal('https://adobe.com/apps/a/school.example.org');
     expect(link.hasAttribute('target')).to.equal(false);
     link.addEventListener('click', (event) => event.preventDefault());
     link.click();
+    expect(clock.countTimers()).to.equal(0);
+  });
+
+  it('ignores an obsolete authored redirect notice in existing fragments', async () => {
+    close();
+    modal.remove();
+    await mount(true, fixture.replace(
+      '<div class="entitlement-check">',
+      '<div class="entitlement-check"><div><div>success-redirect-notice</div><div>Obsolete redirect message</div></div>',
+    ));
+    await submit();
+    expect(block.dataset.state).to.equal('success');
+    expect(block.textContent).not.to.include('Obsolete redirect message');
     expect(clock.countTimers()).to.equal(0);
   });
 
@@ -513,7 +523,7 @@ describe('Entitlement check', () => {
     expect(window.lana.log.called).to.equal(false);
   });
 
-  it('cancels navigation timers on page exit and creates a fresh form on reopen', async () => {
+  it('cleans up on page exit and creates a fresh form on reopen', async () => {
     await submit();
     window.dispatchEvent(new Event('pagehide'));
     expect(clock.countTimers()).to.equal(0);
@@ -576,17 +586,18 @@ describe('Entitlement check', () => {
     expect(block.querySelector('.entitlement-check-trial').textContent).to.equal('Get my free trial');
   });
 
-  it('renders success inline and ignores unrelated modal closure during its redirect delay', async () => {
+  it('keeps the inline success CTA available without automatic navigation after unrelated modal closure', async () => {
     close();
     modal.remove();
     await mount(true, fixture, false);
     await submit('student@School.Example.ORG');
     expect(block.dataset.state).to.equal('success');
-    expect(block.querySelector('.entitlement-check-continue a').href).to.equal('https://adobe.com/apps/a/school.example.org');
+    expect(block.querySelector('.entitlement-check-continue').href).to.equal('https://adobe.com/apps/a/school.example.org');
     expect(document.activeElement).to.equal(block.querySelector('h2'));
     close('another-modal');
-    await clock.tickAsync(1999);
-    expect(clock.countTimers()).to.equal(1);
+    await clock.tickAsync(60000);
+    expect(block.dataset.state).to.equal('success');
+    expect(clock.countTimers()).to.equal(0);
     window.dispatchEvent(new Event('pagehide'));
     expect(clock.countTimers()).to.equal(0);
   });

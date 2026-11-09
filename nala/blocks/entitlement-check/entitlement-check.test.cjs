@@ -48,7 +48,7 @@ async function relativeBox(page, selector) {
   { name: 'tablet', width: 768, height: 1024 },
   { name: 'mobile', width: 390, height: 650 },
 ].forEach(({ name, width, height }) => {
-  test(`${name}: standalone page supports validation, loading, retry, results, and redirect`, async ({ page }) => {
+  test(`${name}: standalone page supports validation, loading, retry, results, and manual navigation`, async ({ page }) => {
     await page.setViewportSize({ width, height });
     let pendingRoute;
     let requests = 0;
@@ -118,7 +118,6 @@ async function relativeBox(page, selector) {
     await checkAccessibility(page, '.entitlement-check');
     pendingRoute = undefined;
     await loadInline();
-    await freeze(page);
     await input.fill('student@School.Example.ORG');
     await consent.check();
     await submit.click();
@@ -126,10 +125,14 @@ async function relativeBox(page, selector) {
     await pendingRoute.fulfill({ json: { status: 'ELIGIBLE' }, headers: { 'access-control-allow-origin': '*' } });
     await expect(block).toHaveAttribute('data-state', 'success');
     await expect(block.getByRole('heading')).toBeFocused();
-    await expect(block.locator('.entitlement-check-continue a')).toHaveAttribute('href', 'https://adobe.com/apps/a/school.example.org');
-    await page.clock.runFor(1999);
+    const continuation = block.getByRole('link', { name: 'Continue to Adobe' });
+    await expect(continuation).toHaveAttribute('href', 'https://adobe.com/apps/a/school.example.org');
+    await checkAccessibility(page, '.entitlement-check');
+    await freeze(page);
+    await page.clock.runFor(60000);
     await expect(page).toHaveURL(new RegExp(`${fixture}\\?inline$`));
-    await page.clock.runFor(1);
+    await expect(block).toHaveAttribute('data-state', 'success');
+    await continuation.click();
     await expect(page).toHaveURL('https://adobe.com/apps/a/school.example.org');
   });
 });
@@ -157,8 +160,6 @@ test.beforeEach(async ({ page }) => {
       return route.fulfill({ json: { status }, headers: { 'access-control-allow-origin': '*' } });
     });
     await open(page);
-    // Axe needs running browser timers; pause only after the final scan.
-    await page.clock.install({ time: new Date('2026-01-01T00:00:00Z') });
     await checkAccessibility(page);
     const layout = await formLayout(page);
     const mobile = name === 'mobile';
@@ -238,12 +239,12 @@ test.beforeEach(async ({ page }) => {
     await consent.check();
     await input.press('Enter');
     await expect(page.locator('.entitlement-check')).toHaveAttribute('data-state', 'success');
-    await expect(page.getByRole('link', { name: 'Not redirected? Continue to Adobe.com.' }))
+    await expect(page.getByRole('link', { name: 'Continue to Adobe' }))
       .toHaveAttribute('href', 'https://adobe.com/apps/a/school.example.org');
     await expect(page.getByRole('heading', { name: 'Congratulations! You have free access.' })).toBeFocused();
     const title = page.locator('.entitlement-check-heading');
     const titleBox = await relativeBox(page, '.entitlement-check-heading');
-    expect(titleBox.y).toBe(mobile ? 136 : 112);
+    expect(titleBox.y).toBe(mobile ? 136 : 123);
     expect(titleBox.height).toBe(mobile ? 60 : 35);
     const lineOffset = await title.evaluate((heading) => {
       const lead = heading.querySelector('.entitlement-check-heading-lead');
@@ -256,16 +257,17 @@ test.beforeEach(async ({ page }) => {
     });
     expect(lineOffset).toBe(mobile ? 30 : 0);
     const continuation = page.locator('.entitlement-check-continue');
-    await expect(continuation).toHaveText('Not redirected? Continue to Adobe.com.');
-    await expect(continuation.locator('a')).toHaveText('Adobe.com.');
+    await expect(continuation).toHaveText('Continue to Adobe');
     await expect(continuation).toHaveCSS('text-decoration-line', 'none');
-    await expect(continuation.locator('a')).toHaveCSS('text-decoration-line', 'underline');
+    await expect(continuation).toHaveCSS('background-color', 'rgb(59, 99, 251)');
+    await expect(continuation).toHaveCSS('color', 'rgb(255, 255, 255)');
     const continueBox = await relativeBox(page, '.entitlement-check-continue');
-    expect(continueBox.y).toBe(mobile ? 335 : 256);
+    expect(continueBox.y).toBe(mobile ? 296 : 228);
+    expect(continueBox.width).toBe(170);
+    expect(continueBox.height).toBe(40);
+    expect((await page.locator('.entitlement-check-modal').boundingBox()).height).toBe(mobile ? 408 : 350);
     await checkAccessibility(page);
-    await page.clock.pauseAt(new Date(await page.evaluate(() => Date.now()) + 1000));
     await page.getByRole('button', { name: 'Close', exact: true }).click();
-    await page.clock.runFor(2000);
     await expect(page).toHaveURL(new RegExp(`${fixture}$`));
     await expect(page.getByRole('dialog')).toHaveCount(0);
   });
@@ -293,7 +295,7 @@ test('long validation copy remains reachable on a narrow, short viewport', async
   ))).toBe(true);
 });
 
-test('success redirects only after two seconds to the computed domain', async ({ page }) => {
+test('success remains on the page until its CTA is activated with the keyboard', async ({ page }) => {
   await page.route(service, (route) => route.fulfill({ json: { status: 'HAS_ACCESS' }, headers: { 'access-control-allow-origin': '*' } }));
   await page.route('https://adobe.com/apps/a/school.example.org', (route) => route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Mock destination</title>' }));
   await open(page);
@@ -302,9 +304,13 @@ test('success redirects only after two seconds to the computed domain', async ({
   await page.getByRole('checkbox').check();
   await page.getByRole('button', { name: 'Check eligibility' }).click();
   await expect(page.locator('.entitlement-check')).toHaveAttribute('data-state', 'success');
-  await page.clock.runFor(1999);
+  await page.clock.runFor(60000);
+  await expect(page).toHaveURL(new RegExp(`${fixture}#eligibility-modal$`));
   await expect(page.getByRole('dialog')).toBeVisible();
-  await page.clock.runFor(1);
+  const continuation = page.getByRole('link', { name: 'Continue to Adobe' });
+  await page.keyboard.press('Tab');
+  await expect(continuation).toBeFocused();
+  await page.keyboard.press('Enter');
   await expect(page).toHaveURL('https://adobe.com/apps/a/school.example.org');
 });
 
