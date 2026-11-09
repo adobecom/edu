@@ -4,6 +4,7 @@ import init from '../../../edu/blocks/entitlement-check/entitlement-check.js';
 
 const mockLibs = '/test/blocks/entitlement-check/mocks';
 const { setConfig } = await import(`${mockLibs}/utils/utils.js`);
+const { analyticsEvents } = await import(`${mockLibs}/martech/helpers.js`);
 const fixture = await fetch('/test/blocks/entitlement-check/fragment.plain.html').then((response) => response.text());
 const personalEmailError = 'Make sure to use your school email, not your personal email.';
 
@@ -36,6 +37,7 @@ describe('Entitlement check', () => {
   }
 
   beforeEach(async () => {
+    analyticsEvents.length = 0;
     clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     request = sinon.stub(window, 'fetch').resolves({ ok: true, json: async () => ({ status: 'ELIGIBLE', reason: 'JIT_ACCOUNT_CREATION_ON' }) });
     originalLana = window.lana;
@@ -51,6 +53,101 @@ describe('Entitlement check', () => {
     clock.restore();
     sinon.restore();
     window.lana = originalLana;
+  });
+
+  it('tracks only the first nonempty textbox input without including its contents', async () => {
+    const input = block.querySelector('input');
+    expect(analyticsEvents).to.deep.equal([]);
+    ['', ' ', 's', 'student@school.example.org', '', 'another@college.example.org'].forEach((value) => {
+      input.value = value;
+      input.dispatchEvent(new Event('input'));
+    });
+    await clock.tickAsync(0);
+    expect(analyticsEvents).to.deep.equal(['entitlement-check:email-input']);
+  });
+
+  it('tracks checkbox checks but not unchecks', async () => {
+    const consent = block.querySelector('[type="checkbox"]');
+    consent.click();
+    consent.click();
+    consent.click();
+    await clock.tickAsync(0);
+    expect(analyticsEvents).to.deep.equal([
+      'entitlement-check:checkbox-checked',
+      'entitlement-check:checkbox-checked',
+    ]);
+  });
+
+  it('preserves event order while analytics loads without delaying eligibility', async () => {
+    const form = block.querySelector('form');
+    form.requestSubmit();
+    const input = block.querySelector('input');
+    input.value = 'student@school.example.org';
+    input.dispatchEvent(new Event('input'));
+    block.querySelector('[type="checkbox"]').click();
+    form.requestSubmit();
+    expect(request.calledOnce).to.equal(true);
+    await clock.tickAsync(0);
+    expect(analyticsEvents).to.deep.equal([
+      'entitlement-check:validation-error:required',
+      'entitlement-check:email-input',
+      'entitlement-check:checkbox-checked',
+      'entitlement-check:form-submit',
+      'entitlement-check:eligible',
+    ]);
+  });
+
+  it('tracks only the displayed validation error without a submission or API outcome', async () => {
+    await submit('', false);
+    await submit('not-an-email', false);
+    await submit('student@gmail.com', false);
+    await submit('student@school.example.org', false);
+    expect(analyticsEvents).to.deep.equal([
+      'entitlement-check:validation-error:required',
+      'entitlement-check:validation-error:invalid-email',
+      'entitlement-check:validation-error:personal-email',
+      'entitlement-check:validation-error:checkbox',
+    ]);
+    expect(request.called).to.equal(false);
+  });
+
+  ['HAS_ACCESS', 'ELIGIBLE', 'NOT_ELIGIBLE'].forEach((status) => {
+    it(`tracks a single valid submission and the normalized ${status} return`, async () => {
+      let resolve;
+      request.returns(new Promise((done) => { resolve = done; }));
+      await submit();
+      await submit();
+      expect(request.callCount).to.equal(1);
+      expect(analyticsEvents).to.deep.equal(['entitlement-check:form-submit']);
+      resolve({ ok: true, json: async () => ({ status }) });
+      await clock.tickAsync(0);
+      expect(analyticsEvents).to.deep.equal([
+        'entitlement-check:form-submit',
+        `entitlement-check:${status === 'NOT_ELIGIBLE' ? 'ineligible' : 'eligible'}`,
+      ]);
+    });
+  });
+
+  it('tracks a retry as another submission without treating a service failure as ineligibility', async () => {
+    request.onFirstCall().resolves({ ok: false });
+    await submit();
+    expect(analyticsEvents).to.deep.equal(['entitlement-check:form-submit']);
+    await submit();
+    expect(analyticsEvents).to.deep.equal([
+      'entitlement-check:form-submit',
+      'entitlement-check:form-submit',
+      'entitlement-check:eligible',
+    ]);
+  });
+
+  it('keeps eligibility functional and logs no private details if analytics fails', async () => {
+    sinon.stub(analyticsEvents, 'push').throws(new Error('Analytics failure for student@school.example.org'));
+    await submit();
+    expect(request.calledOnce).to.equal(true);
+    expect(block.dataset.state).to.equal('success');
+    expect(window.lana.log.callCount).to.equal(2);
+    expect(window.lana.log.args.every(([message]) => message === 'Entitlement check: analytics event failed')).to.equal(true);
+    expect(JSON.stringify(window.lana.log.args)).not.to.include('student@school.example.org');
   });
 
   it('preserves authored headings, legal links, and accessible field associations', () => {
@@ -373,7 +470,10 @@ describe('Entitlement check', () => {
       expect(block.querySelector('[type="checkbox"]').checked).to.equal(true);
       expect(block.querySelector('.spectrum-ProgressCircle').hidden).to.equal(true);
       expect(block.querySelector('form').hasAttribute('aria-busy')).to.equal(false);
-      expect(window.lana.log.firstCall.args[0]).to.equal('Entitlement check: eligibility request failed');
+      expect(window.lana.log.calledOnceWithExactly(
+        'Entitlement check: eligibility request failed',
+        { tags: 'entitlement-check', severity: 'error' },
+      )).to.equal(true);
       await submit();
       expect(request.callCount).to.equal(2);
       expect(block.dataset.state).to.equal('success');
@@ -385,7 +485,12 @@ describe('Entitlement check', () => {
     await submit();
     expect(block.dataset.state).to.equal('form');
     expect(block.querySelector('[role="alert"]').hidden).to.equal(false);
+    expect(window.lana.log.calledOnceWithExactly(
+      'Entitlement check: eligibility request failed',
+      { tags: 'entitlement-check', severity: 'error' },
+    )).to.equal(true);
     expect(JSON.stringify(window.lana.log.args)).not.to.include('student@school.example.org');
+    expect(JSON.stringify(window.lana.log.args)).not.to.include('Network failure');
     expect(clock.countTimers()).to.equal(0);
   });
 
@@ -503,6 +608,10 @@ describe('Entitlement check', () => {
     expect(block.querySelector('[role="alert"]').textContent).to.include('Please try again.');
     expect(block.querySelector('button').disabled).to.equal(false);
     expect(block.querySelector('.spectrum-ProgressCircle').hidden).to.equal(true);
+    expect(window.lana.log.calledOnceWithExactly(
+      'Entitlement check: eligibility request failed',
+      { tags: 'entitlement-check', severity: 'error' },
+    )).to.equal(true);
     await submit();
     expect(block.dataset.state).to.equal('success');
   });
@@ -521,6 +630,11 @@ describe('Entitlement check', () => {
     expect(block.dataset.state).to.equal('form');
     expect(clock.countTimers()).to.equal(0);
     expect(window.lana.log.called).to.equal(false);
+    block.querySelector('input').dispatchEvent(new Event('input'));
+    const consent = block.querySelector('[type="checkbox"]');
+    consent.dispatchEvent(new Event('change'));
+    await clock.tickAsync(0);
+    expect(analyticsEvents).to.deep.equal(['entitlement-check:form-submit']);
   });
 
   it('cleans up on page exit and creates a fresh form on reopen', async () => {

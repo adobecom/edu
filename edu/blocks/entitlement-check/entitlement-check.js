@@ -178,6 +178,16 @@ export default async function init(block) {
   let controller;
   let requestTimer;
   let errorField;
+  let inputTracked = false;
+  let analyticsModule;
+
+  function trackEvent(name) {
+    if (disposed || !block.isConnected || modal?.dataset.closing) return;
+    if (!analyticsModule) analyticsModule = import(`${getLibs()}/martech/helpers.js`);
+    analyticsModule
+      .then(({ sendAnalytics }) => sendAnalytics(`entitlement-check:${name}`))
+      .catch(() => logError('analytics event failed'));
+  }
 
   function dispose(event) {
     if (event?.type === 'milo:modal:closed' && (!modal || event.detail?.id !== modal.id)) return;
@@ -215,9 +225,14 @@ export default async function init(block) {
 
   input.addEventListener('input', () => {
     if (errorField !== consent) clearError();
+    if (!inputTracked && input.value.trim()) {
+      inputTracked = true;
+      trackEvent('email-input');
+    }
   });
   consent.addEventListener('change', () => {
     if (errorField === consent) clearError();
+    if (consent.checked) trackEvent('checkbox-checked');
   });
 
   function showResult(eligible, domain) {
@@ -257,17 +272,21 @@ export default async function init(block) {
     if (busy || disposed) return;
     input.value = input.value.trim();
     if (!input.validity.valid) {
-      showError(text(input.validity.valueMissing ? 'required-error' : 'invalid-email-error'), input);
+      const errorType = input.validity.valueMissing ? 'required' : 'invalid-email';
+      showError(text(`${errorType}-error`), input);
+      trackEvent(`validation-error:${errorType}`);
       return;
     }
     const email = input.value;
     const domain = email.slice(email.lastIndexOf('@') + 1).toLowerCase();
     if (PERSONAL_EMAIL_DOMAINS.has(domain)) {
       showError(personalEmailError, input);
+      trackEvent('validation-error:personal-email');
       return;
     }
     if (!consent.checked) {
       showError(checkboxError, consent);
+      trackEvent('validation-error:checkbox');
       return;
     }
     clearError();
@@ -279,6 +298,7 @@ export default async function init(block) {
     progress.hidden = false;
     controller = new AbortController();
     requestTimer = window.setTimeout(() => controller.abort(), 15000);
+    trackEvent('form-submit');
     let eligibilityStatus;
     try {
       const response = await fetch(`${host}/v1/entitlements`, {
@@ -310,9 +330,11 @@ export default async function init(block) {
       progress.hidden = true;
     }
     if (disposed || !block.isConnected || modal?.dataset.closing) return;
+    const eligible = ['HAS_ACCESS', 'ELIGIBLE'].includes(eligibilityStatus);
+    trackEvent(eligible ? 'eligible' : 'ineligible');
     const modalLabel = modal?.getAttribute('aria-label') ?? null;
     try {
-      showResult(['HAS_ACCESS', 'ELIGIBLE'].includes(eligibilityStatus), domain);
+      showResult(eligible, domain);
     } catch (e) {
       logError('result rendering failed');
       if (disposed || !block.isConnected || modal?.dataset.closing) return;

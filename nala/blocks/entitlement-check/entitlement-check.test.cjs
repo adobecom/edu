@@ -273,6 +273,83 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
+['modal', 'inline'].forEach((mode) => {
+  test(`${mode}: analytics tracks the eligibility funnel and errors without form contents`, async ({ page }) => {
+    await page.addInitScript(() => {
+      window.entitlementAnalytics = [];
+      // eslint-disable-next-line no-underscore-dangle
+      window._satellite = { track: (type, payload) => window.entitlementAnalytics.push({ type, payload }) };
+    });
+    let status = 'NOT_ELIGIBLE';
+    await page.route(service, (route) => route.fulfill({ json: { status }, headers: { 'access-control-allow-origin': '*' } }));
+    const loadForm = async () => {
+      if (mode === 'modal') {
+        await open(page);
+      } else {
+        await page.goto(`${fixture}?inline`);
+        await expect(page.locator('html')).toHaveAttribute('data-ready', 'true');
+        await expect(page.locator('.entitlement-check')).toHaveAttribute('data-state', 'form');
+      }
+    };
+    const getEvents = () => page.evaluate(() => window.entitlementAnalytics.filter(
+      ({ payload }) => payload?.xdm?.web?.webInteraction?.name?.startsWith('entitlement-check:'),
+    ));
+    const getNames = async () => (await getEvents()).map(({ payload }) => payload.xdm.web.webInteraction.name);
+    await loadForm();
+    const input = page.getByRole('textbox', { name: 'College email address' });
+    const consent = page.getByRole('checkbox');
+    const submit = page.getByRole('button', { name: 'Check eligibility' });
+    await submit.click();
+    await expect(page.getByRole('alert')).toHaveText('This field is required.');
+    await input.fill('not-an-email');
+    await submit.click();
+    await expect(page.getByRole('alert')).toHaveText('Enter a valid email address.');
+    await input.fill('student@gmail.com');
+    await submit.click();
+    await expect(page.getByRole('alert')).toHaveText('Make sure to use your school email, not your personal email.');
+    await input.fill('student@school.example.org');
+    await submit.click();
+    await expect(page.getByRole('alert')).toHaveText('Please select the checkbox to continue.');
+    await page.keyboard.press('Space');
+    await submit.click();
+    await expect(page.locator('.entitlement-check')).toHaveAttribute('data-state', 'rejected');
+    await expect.poll(getNames, { timeout: 15000 }).toEqual([
+      'entitlement-check:validation-error:required',
+      'entitlement-check:email-input',
+      'entitlement-check:validation-error:invalid-email',
+      'entitlement-check:validation-error:personal-email',
+      'entitlement-check:validation-error:checkbox',
+      'entitlement-check:checkbox-checked',
+      'entitlement-check:form-submit',
+      'entitlement-check:ineligible',
+    ]);
+    const rejectedEvents = await getEvents();
+    status = 'ELIGIBLE';
+    await loadForm();
+    await input.fill('student@school.example.org');
+    await consent.check();
+    await submit.click();
+    await expect(page.locator('.entitlement-check')).toHaveAttribute('data-state', 'success');
+    await expect.poll(getNames, { timeout: 15000 }).toEqual([
+      'entitlement-check:email-input',
+      'entitlement-check:checkbox-checked',
+      'entitlement-check:form-submit',
+      'entitlement-check:eligible',
+    ]);
+    const events = [...rejectedEvents, ...await getEvents()];
+    events.forEach(({ type, payload }) => {
+      expect(type).toBe('event');
+      const { _adobe_corpnew: adobeData } = payload.data;
+      expect(payload.xdm.web.webInteraction.name)
+        .toBe(adobeData.digitalData.primaryEvent.eventInfo.eventName);
+    });
+    const serialized = JSON.stringify(events);
+    ['student@', 'school.example.org', 'gmail.com', 'not-an-email', 'Please select the checkbox'].forEach((value) => {
+      expect(serialized).not.toContain(value);
+    });
+  });
+});
+
 test('long validation copy remains reachable on a narrow, short viewport', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 360 });
   const message = 'Please enter your college email address to check eligibility. '.repeat(8).trim();
