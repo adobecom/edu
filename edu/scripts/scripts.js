@@ -307,8 +307,11 @@ function overrideConsonantTypography() {
 }
 
 (function loadStyles() {
-  const paths = [`${miloLibs}/styles/styles.css`];
-  if (STYLES) { paths.push(STYLES); }
+  const foundation = document.head.querySelector('meta[name="foundation"]');
+  const stylesPrefix = foundation && foundation.content === 'c2'
+    ? '/c2'
+    : '';
+  const paths = [`${miloLibs}${stylesPrefix}/styles/styles.css`, ...STYLES];
   paths.forEach((path) => {
     const link = document.createElement('link');
     link.setAttribute('rel', 'stylesheet');
