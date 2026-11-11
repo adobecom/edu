@@ -101,12 +101,10 @@ describe('Entitlement check', () => {
     await submit('', false);
     await submit('not-an-email', false);
     await submit('student@gmail.com', false);
-    await submit('student@school.example.org', false);
     expect(analyticsEvents).to.deep.equal([
       'entitlement-check:validation-error:required',
       'entitlement-check:validation-error:invalid-email',
       'entitlement-check:validation-error:personal-email',
-      'entitlement-check:validation-error:checkbox',
     ]);
     expect(request.called).to.equal(false);
   });
@@ -159,7 +157,8 @@ describe('Entitlement check', () => {
     expect(block.querySelector('button').textContent).to.equal('Check eligibility');
     const consent = block.querySelector('[type="checkbox"]');
     expect(consent.checked).to.equal(false);
-    expect(consent.required).to.equal(true);
+    expect(consent.required).to.equal(false);
+    expect(consent.hasAttribute('aria-describedby')).to.equal(false);
     expect(block.querySelector('.entitlement-check-legal').htmlFor).to.equal(consent.id);
   });
 
@@ -168,7 +167,7 @@ describe('Entitlement check', () => {
     { email: 'not-an-email', message: 'Enter a valid email address.' },
     { email: 'student@gmail.com', message: personalEmailError },
   ].forEach(({ email, message }) => {
-    it(`prioritizes the email error for ${JSON.stringify(email)} when consent is unchecked`, async () => {
+    it(`validates the email for ${JSON.stringify(email)} when consent is unchecked`, async () => {
       await submit(email, false);
       const consent = block.querySelector('[type="checkbox"]');
       const error = block.querySelector('[role="alert"]');
@@ -182,59 +181,34 @@ describe('Entitlement check', () => {
     });
   });
 
-  it('requires consent after a valid email, uses authored error text, and permits correction', async () => {
-    close();
-    modal.remove();
-    const message = 'Please agree to continue.';
-    await mount(true, fixture.replace('Please select the checkbox to continue.', message));
-    await submit('student@school.example.org', false);
+  it('submits a valid email without consent or checkbox validation analytics', async () => {
     const consent = block.querySelector('[type="checkbox"]');
-    const input = block.querySelector('input');
     const error = block.querySelector('[role="alert"]');
-    expect(error.textContent).to.equal(message);
-    expect(document.activeElement).to.equal(consent);
-    expect(consent.getAttribute('aria-invalid')).to.equal('true');
-    expect(document.getElementById(consent.getAttribute('aria-describedby'))).to.equal(error);
-    expect(input.hasAttribute('aria-invalid')).to.equal(false);
-    expect(request.called).to.equal(false);
-    expect(block.querySelector('.spectrum-ProgressCircle').hidden).to.equal(true);
-    input.dispatchEvent(new Event('input'));
-    expect(error.hidden).to.equal(false);
-    await submit('not-an-email', false);
-    expect(error.textContent).to.equal('Enter a valid email address.');
-    expect(consent.hasAttribute('aria-invalid')).to.equal(false);
     await submit('student@school.example.org', false);
-    expect(error.textContent).to.equal(message);
-    consent.click();
     expect(error.hidden).to.equal(true);
+    expect(consent.checked).to.equal(false);
     expect(consent.hasAttribute('aria-invalid')).to.equal(false);
-    await submit();
     expect(request.calledOnce).to.equal(true);
     expect(block.dataset.state).to.equal('success');
+    expect(analyticsEvents).to.deep.equal([
+      'entitlement-check:form-submit',
+      'entitlement-check:eligible',
+    ]);
   });
 
-  it('uses the Figma checkbox error when the optional authoring row is absent', async () => {
-    close();
-    modal.remove();
-    await mount(true, fixture.replace(
-      '<div><div>checkbox-error</div><div>Please select the checkbox to continue.</div></div>',
-      '',
-    ));
-    await submit('student@school.example.org', false);
-    expect(block.querySelector('[role="alert"]').textContent).to.equal('Please select the checkbox to continue.');
-    expect(request.called).to.equal(false);
-    expect(window.lana.log.called).to.equal(false);
-  });
-
-  it('reports a blank authored checkbox error as invalid configuration', async () => {
-    close();
-    modal.remove();
-    await mount(true, fixture.replace('Please select the checkbox to continue.', ' ')).then(
-      () => { throw new Error('Expected invalid authoring to fail.'); },
-      (error) => expect(error.message).to.include('authoring configuration'),
-    );
-    expect(window.lana.log.calledOnce).to.equal(true);
-    expect(request.called).to.equal(false);
+  ['Obsolete checkbox message', ' '].forEach((message) => {
+    it(`ignores an obsolete checkbox-error authoring row containing ${JSON.stringify(message)}`, async () => {
+      close();
+      modal.remove();
+      await mount(true, fixture.replace(
+        '<div class="entitlement-check">',
+        `<div class="entitlement-check"><div><div>checkbox-error</div><div>${message}</div></div>`,
+      ));
+      await submit('student@school.example.org', false);
+      expect(block.dataset.state).to.equal('success');
+      expect(request.calledOnce).to.equal(true);
+      expect(window.lana.log.called).to.equal(false);
+    });
   });
 
   it('initializes within a detached Milo dialog before it is opened', async () => {
@@ -677,23 +651,22 @@ describe('Entitlement check', () => {
     expect(request.called).to.equal(false);
   });
 
-  it('validates email and consent, recovers from failure, and renders rejection directly on the page', async () => {
+  it('validates email, submits without consent, and retries directly on the page', async () => {
     close();
     modal.remove();
     await mount(true, fixture, false);
     expect(modal.classList.contains('entitlement-check-modal')).to.equal(false);
     await submit('', false);
     expect(block.querySelector('[role="alert"]').textContent).to.equal('This field is required.');
-    await submit('student@school.example.org', false);
-    expect(block.querySelector('[role="alert"]').textContent).to.equal('Please select the checkbox to continue.');
     expect(request.called).to.equal(false);
     request.onFirstCall().resolves({ ok: false });
-    await submit();
+    await submit('student@school.example.org', false);
     expect(block.dataset.state).to.equal('form');
     expect(block.querySelector('[role="alert"]').textContent).to.include('Please try again.');
     expect(block.querySelector('button').disabled).to.equal(false);
+    expect(block.querySelector('[type="checkbox"]').checked).to.equal(false);
     request.resolves({ ok: true, json: async () => ({ status: 'NOT_ELIGIBLE' }) });
-    await submit();
+    await submit('student@school.example.org', false);
     expect(block.dataset.state).to.equal('rejected');
     expect(document.activeElement).to.equal(block.querySelector('h2'));
     expect(modal.hasAttribute('aria-label')).to.equal(false);

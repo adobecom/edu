@@ -34,7 +34,6 @@ function readConfig(block) {
   const personalEmailError = config['personal-email-error'];
   if (REQUIRED_KEYS.some((key) => !config[key]?.textContent.trim())
     || (personalEmailError && !personalEmailError.textContent.trim())
-    || (config['checkbox-error'] && !config['checkbox-error'].textContent.trim())
     || !cta?.textContent.trim() || !cta.getAttribute('href')?.trim()
     || !['https:', 'http:'].includes(cta.protocol)) {
     logError('invalid authoring configuration');
@@ -90,8 +89,6 @@ export default async function init(block) {
   const personalEmailError = config['personal-email-error']
     ? text('personal-email-error')
     : 'Make sure to use your school email, not your personal email.';
-  const checkboxError = config['checkbox-error']
-    ? text('checkbox-error') : 'Please select the checkbox to continue.';
   const form = document.createElement('form');
   form.noValidate = true;
   const intro = document.createElement('div');
@@ -125,9 +122,7 @@ export default async function init(block) {
   consent.id = `${id}-consent`;
   consent.name = 'consent';
   consent.type = 'checkbox';
-  consent.required = true;
   consent.className = 'entitlement-check-consent-input';
-  consent.setAttribute('aria-describedby', error.id);
   const legal = document.createElement('label');
   legal.htmlFor = consent.id;
   legal.className = 'entitlement-check-legal';
@@ -177,7 +172,6 @@ export default async function init(block) {
   let busy = false;
   let controller;
   let requestTimer;
-  let errorField;
   let inputTracked = false;
   let analyticsModule;
 
@@ -208,15 +202,12 @@ export default async function init(block) {
     error.hidden = true;
     error.textContent = '';
     input.removeAttribute('aria-invalid');
-    consent.removeAttribute('aria-invalid');
-    errorField = undefined;
   }
 
   function showError(message, invalidField) {
     clearError();
     error.textContent = message;
     error.hidden = false;
-    errorField = invalidField;
     if (invalidField) {
       invalidField.setAttribute('aria-invalid', 'true');
       invalidField.focus();
@@ -224,14 +215,13 @@ export default async function init(block) {
   }
 
   input.addEventListener('input', () => {
-    if (errorField !== consent) clearError();
+    clearError();
     if (!inputTracked && input.value.trim()) {
       inputTracked = true;
       trackEvent('email-input');
     }
   });
   consent.addEventListener('change', () => {
-    if (errorField === consent) clearError();
     if (consent.checked) trackEvent('checkbox-checked');
   });
 
@@ -282,11 +272,6 @@ export default async function init(block) {
     if (PERSONAL_EMAIL_DOMAINS.has(domain)) {
       showError(personalEmailError, input);
       trackEvent('validation-error:personal-email');
-      return;
-    }
-    if (!consent.checked) {
-      showError(checkboxError, consent);
-      trackEvent('validation-error:checkbox');
       return;
     }
     clearError();

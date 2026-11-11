@@ -81,12 +81,10 @@ async function relativeBox(page, selector) {
     await submit.click();
     await expect(error).toHaveText('Enter a valid email address.');
     await input.fill('student@school.example.org');
-    await submit.click();
-    await expect(error).toHaveText('Please select the checkbox to continue.');
-    await expect(consent).toBeFocused();
+    await expect(consent).not.toBeChecked();
+    await expect(consent).toHaveJSProperty('required', false);
     expect(requests).toBe(0);
     await checkAccessibility(page, '.entitlement-check');
-    await page.keyboard.press('Space');
     const initial = await submit.boundingBox();
     await submit.click();
     await expect(progress).toBeVisible();
@@ -105,7 +103,7 @@ async function relativeBox(page, selector) {
     await expect.poll(() => Boolean(pendingRoute)).toBe(true);
     await pendingRoute.fulfill({ status: 503, headers: { 'access-control-allow-origin': '*' } });
     await expect(error).toContainText('Please try again.');
-    await expect(consent).toBeChecked();
+    await expect(consent).not.toBeChecked();
     await expect(submit).toBeEnabled();
     await expect(progress).toBeHidden();
     pendingRoute = undefined;
@@ -204,19 +202,12 @@ test.beforeEach(async ({ page }) => {
     await checkAccessibility(page);
     await input.fill('student@school.example.org');
     await expect(page.locator('.entitlement-check-error')).toBeHidden();
-    await input.press('Enter');
-    await expect(page.getByRole('alert')).toHaveText('Please select the checkbox to continue.');
-    await expect(page.getByRole('alert')).toHaveCount(1);
-    await expect(consent).toHaveAttribute('aria-invalid', 'true');
-    await expect(input).not.toHaveAttribute('aria-invalid', 'true');
-    await expect(consent).toBeFocused();
+    await expect(consent).not.toBeChecked();
+    await expect(consent).toHaveJSProperty('required', false);
     expect(requests).toBe(0);
     expect(await formLayout(page)).toEqual(layout);
     await checkAccessibility(page);
-    await page.keyboard.press('Space');
-    await expect(consent).toBeChecked();
-    await expect(page.getByRole('alert')).toBeHidden();
-    await page.getByRole('button', { name: 'Check eligibility' }).click();
+    await input.press('Enter');
     await expect(page.locator('.entitlement-check')).toHaveAttribute('data-state', 'rejected');
     await expect(page.getByRole('link', { name: 'Get my free trial' })).toHaveAttribute('href', 'https://www.adobe.com/creativecloud/start-with-free-creativecloud.html');
     const trialBox = await relativeBox(page, '.entitlement-check-trial');
@@ -309,17 +300,12 @@ test.beforeEach(async ({ page }) => {
     await expect(page.getByRole('alert')).toHaveText('Make sure to use your school email, not your personal email.');
     await input.fill('student@school.example.org');
     await submit.click();
-    await expect(page.getByRole('alert')).toHaveText('Please select the checkbox to continue.');
-    await page.keyboard.press('Space');
-    await submit.click();
     await expect(page.locator('.entitlement-check')).toHaveAttribute('data-state', 'rejected');
     await expect.poll(getNames, { timeout: 15000 }).toEqual([
       'entitlement-check:validation-error:required',
       'entitlement-check:email-input',
       'entitlement-check:validation-error:invalid-email',
       'entitlement-check:validation-error:personal-email',
-      'entitlement-check:validation-error:checkbox',
-      'entitlement-check:checkbox-checked',
       'entitlement-check:form-submit',
       'entitlement-check:ineligible',
     ]);
@@ -344,7 +330,7 @@ test.beforeEach(async ({ page }) => {
         .toBe(adobeData.digitalData.primaryEvent.eventInfo.eventName);
     });
     const serialized = JSON.stringify(events);
-    ['student@', 'school.example.org', 'gmail.com', 'not-an-email', 'Please select the checkbox'].forEach((value) => {
+    ['student@', 'school.example.org', 'gmail.com', 'not-an-email', 'Enter a valid email address.'].forEach((value) => {
       expect(serialized).not.toContain(value);
     });
   });
