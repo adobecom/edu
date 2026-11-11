@@ -3,9 +3,12 @@ const AxeBuilder = require('@axe-core/playwright').default;
 
 const fixture = '/test/blocks/entitlement-check/integration.html';
 const service = /^https:\/\/edu-org(?:-stage)?\.adobe\.io\/v1\/entitlements$/;
+const adobeDestination = /^https?:\/\/www\.(?:stage\.)?adobe\.com\/apps\/a\//;
+const stageDestination = 'http://www.stage.adobe.com/apps/a/school.example.org?assign_pac=2300&sdid=XFWLH43Y';
+const stageBrowserDestination = stageDestination.replace('http:', 'https:');
 
-async function open(page) {
-  await page.goto(fixture);
+async function open(page, query = '') {
+  await page.goto(`${fixture}${query}`);
   await expect(page.locator('html')).toHaveAttribute('data-ready', 'true');
   await page.getByRole('link', { name: 'Check eligibility', exact: true }).click();
   await expect(page.getByRole('textbox', { name: 'College email address' })).toBeVisible();
@@ -17,6 +20,33 @@ async function freeze(page) {
   const time = new Date('2026-01-01T00:00:00Z');
   await page.clock.install({ time });
   await page.clock.pauseAt(new Date(time.getTime() + 1000));
+}
+
+async function captureNavigation(page, onNavigation) {
+  const prefix = 'entitlement-navigation:';
+  page.on('console', (message) => {
+    const value = message.text();
+    if (value.startsWith(prefix)) onNavigation(JSON.parse(value.slice(prefix.length)));
+  });
+  await page.addInitScript((marker) => {
+    let destination;
+    window.navigation.addEventListener('navigate', (event) => {
+      destination = event.destination.url;
+    });
+    window.addEventListener('beforeunload', () => {
+      const snapshot = {
+        destination,
+        state: document.querySelector('.entitlement-check')?.dataset.state,
+        result: Boolean(document.querySelector('.entitlement-check-result')),
+        cta: Boolean(document.querySelector('.entitlement-check-continue')),
+        events: (window.entitlementAnalytics || []).filter(
+          ({ payload }) => payload?.xdm?.web?.webInteraction?.name?.startsWith('entitlement-check:'),
+        ),
+      };
+      // eslint-disable-next-line no-console
+      console.info(`${marker}${JSON.stringify(snapshot)}`);
+    });
+  }, prefix);
 }
 
 async function checkAccessibility(page, scope = '.entitlement-check-modal') {
@@ -48,7 +78,7 @@ async function relativeBox(page, selector) {
   { name: 'tablet', width: 768, height: 1024 },
   { name: 'mobile', width: 390, height: 650 },
 ].forEach(({ name, width, height }) => {
-  test(`${name}: standalone page supports validation, loading, retry, results, and manual navigation`, async ({ page }) => {
+  test(`${name}: standalone page supports validation, loading, retry, rejection, and immediate redirect`, async ({ page }) => {
     await page.setViewportSize({ width, height });
     let pendingRoute;
     let requests = 0;
@@ -56,7 +86,6 @@ async function relativeBox(page, selector) {
       requests += 1;
       pendingRoute = route;
     });
-    await page.route('https://adobe.com/apps/a/school.example.org', (route) => route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Mock destination</title>' }));
     const loadInline = async () => {
       await page.goto(`${fixture}?inline`);
       await expect(page.locator('html')).toHaveAttribute('data-ready', 'true');
@@ -121,27 +150,27 @@ async function relativeBox(page, selector) {
     await submit.click();
     await expect.poll(() => Boolean(pendingRoute)).toBe(true);
     await pendingRoute.fulfill({ json: { status: 'ELIGIBLE' }, headers: { 'access-control-allow-origin': '*' } });
-    await expect(block).toHaveAttribute('data-state', 'success');
-    await expect(block.getByRole('heading')).toBeFocused();
-    const continuation = block.getByRole('link', { name: 'Continue to Adobe' });
-    await expect(continuation).toHaveAttribute('href', 'https://adobe.com/apps/a/school.example.org');
-    await checkAccessibility(page, '.entitlement-check');
-    await freeze(page);
-    await page.clock.runFor(60000);
-    await expect(page).toHaveURL(new RegExp(`${fixture}\\?inline$`));
-    await expect(block).toHaveAttribute('data-state', 'success');
-    await continuation.click();
-    await expect(page).toHaveURL('https://adobe.com/apps/a/school.example.org');
+    await expect(page).toHaveURL(stageBrowserDestination);
   });
 });
 
 test.beforeEach(async ({ page }) => {
-  // Serve real Milo under the local /libs mount; only the eligibility API is mocked.
+  // Serve real Milo under /libs; mock eligibility requests and Adobe navigation.
   await page.route('**/libs/**', async (route) => {
     const url = new URL(route.request().url());
     const response = await route.fetch({ url: `https://main--milo--adobecom.aem.live${url.pathname}${url.search}` });
     await route.fulfill({ response });
   });
+  await page.route(adobeDestination, (route) => route.fulfill({
+    contentType: 'text/html',
+    body: '<!doctype html><title>Mock destination</title>',
+  }));
+});
+
+test.afterEach(async ({ page }) => {
+  if (adobeDestination.test(page.url())) {
+    await page.unrouteAll({ behavior: 'wait' });
+  }
 });
 
 [
@@ -149,7 +178,7 @@ test.beforeEach(async ({ page }) => {
   { name: 'tablet', width: 768, height: 1024 },
   { name: 'mobile', width: 390, height: 650 },
 ].forEach(({ name, width, height }) => {
-  test(`${name}: validation, rejection, success, accessibility, and dismissal`, async ({ page }) => {
+  test(`${name}: validation, rejection, immediate redirect, accessibility, and dismissal`, async ({ page }) => {
     await page.setViewportSize({ width, height });
     let status = 'NOT_ELIGIBLE';
     let requests = 0;
@@ -229,43 +258,15 @@ test.beforeEach(async ({ page }) => {
     await input.fill('student@School.Example.ORG');
     await consent.check();
     await input.press('Enter');
-    await expect(page.locator('.entitlement-check')).toHaveAttribute('data-state', 'success');
-    await expect(page.getByRole('link', { name: 'Continue to Adobe' }))
-      .toHaveAttribute('href', 'https://adobe.com/apps/a/school.example.org');
-    await expect(page.getByRole('heading', { name: 'Congratulations! You have free access.' })).toBeFocused();
-    const title = page.locator('.entitlement-check-heading');
-    const titleBox = await relativeBox(page, '.entitlement-check-heading');
-    expect(titleBox.y).toBe(mobile ? 136 : 123);
-    expect(titleBox.height).toBe(mobile ? 60 : 35);
-    const lineOffset = await title.evaluate((heading) => {
-      const lead = heading.querySelector('.entitlement-check-heading-lead');
-      const first = document.createRange();
-      first.selectNodeContents(lead);
-      const rest = document.createRange();
-      rest.selectNodeContents(heading);
-      rest.setStartAfter(lead);
-      return rest.getBoundingClientRect().y - first.getBoundingClientRect().y;
-    });
-    expect(lineOffset).toBe(mobile ? 30 : 0);
-    const continuation = page.locator('.entitlement-check-continue');
-    await expect(continuation).toHaveText('Continue to Adobe');
-    await expect(continuation).toHaveCSS('text-decoration-line', 'none');
-    await expect(continuation).toHaveCSS('background-color', 'rgb(59, 99, 251)');
-    await expect(continuation).toHaveCSS('color', 'rgb(255, 255, 255)');
-    const continueBox = await relativeBox(page, '.entitlement-check-continue');
-    expect(continueBox.y).toBe(mobile ? 296 : 228);
-    expect(continueBox.width).toBe(170);
-    expect(continueBox.height).toBe(40);
-    expect((await page.locator('.entitlement-check-modal').boundingBox()).height).toBe(mobile ? 408 : 350);
-    await checkAccessibility(page);
-    await page.getByRole('button', { name: 'Close', exact: true }).click();
-    await expect(page).toHaveURL(new RegExp(`${fixture}$`));
+    await expect(page).toHaveURL(stageBrowserDestination);
     await expect(page.getByRole('dialog')).toHaveCount(0);
   });
 });
 
 ['modal', 'inline'].forEach((mode) => {
   test(`${mode}: analytics tracks the eligibility funnel and errors without form contents`, async ({ page }) => {
+    let eligibleEvents;
+    await captureNavigation(page, ({ events }) => { eligibleEvents = events; });
     await page.addInitScript(() => {
       window.entitlementAnalytics = [];
       // eslint-disable-next-line no-underscore-dangle
@@ -314,15 +315,19 @@ test.beforeEach(async ({ page }) => {
     await loadForm();
     await input.fill('student@school.example.org');
     await consent.check();
-    await submit.click();
-    await expect(page.locator('.entitlement-check')).toHaveAttribute('data-state', 'success');
     await expect.poll(getNames, { timeout: 15000 }).toEqual([
+      'entitlement-check:email-input',
+      'entitlement-check:checkbox-checked',
+    ]);
+    await submit.click();
+    await expect(page).toHaveURL(stageBrowserDestination);
+    await expect.poll(() => eligibleEvents?.map(({ payload }) => payload.xdm.web.webInteraction.name)).toEqual([
       'entitlement-check:email-input',
       'entitlement-check:checkbox-checked',
       'entitlement-check:form-submit',
       'entitlement-check:eligible',
     ]);
-    const events = [...rejectedEvents, ...await getEvents()];
+    const events = [...rejectedEvents, ...eligibleEvents];
     events.forEach(({ type, payload }) => {
       expect(type).toBe('event');
       const { _adobe_corpnew: adobeData } = payload.data;
@@ -358,23 +363,38 @@ test('long validation copy remains reachable on a narrow, short viewport', async
   ))).toBe(true);
 });
 
-test('success remains on the page until its CTA is activated with the keyboard', async ({ page }) => {
-  await page.route(service, (route) => route.fulfill({ json: { status: 'HAS_ACCESS' }, headers: { 'access-control-allow-origin': '*' } }));
-  await page.route('https://adobe.com/apps/a/school.example.org', (route) => route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Mock destination</title>' }));
-  await open(page);
-  await freeze(page);
-  await page.getByRole('textbox', { name: 'College email address' }).fill('student@school.example.org');
-  await page.getByRole('checkbox').check();
-  await page.getByRole('button', { name: 'Check eligibility' }).click();
-  await expect(page.locator('.entitlement-check')).toHaveAttribute('data-state', 'success');
-  await page.clock.runFor(60000);
-  await expect(page).toHaveURL(new RegExp(`${fixture}#eligibility-modal$`));
-  await expect(page.getByRole('dialog')).toBeVisible();
-  const continuation = page.getByRole('link', { name: 'Continue to Adobe' });
-  await page.keyboard.press('Tab');
-  await expect(continuation).toBeFocused();
-  await page.keyboard.press('Enter');
-  await expect(page).toHaveURL('https://adobe.com/apps/a/school.example.org');
+['modal', 'inline'].forEach((mode) => {
+  [
+    { status: 'HAS_ACCESS', env: 'stage' },
+    { status: 'ELIGIBLE', env: 'stage' },
+    { status: 'ELIGIBLE', env: 'prod' },
+  ].forEach(({ status, env }) => {
+    test(`${mode}: ${status} immediately redirects in ${env} without success content or a timer`, async ({ page }) => {
+      let endpoint;
+      await page.route(service, (route) => {
+        endpoint = route.request().url();
+        return route.fulfill({ json: { status }, headers: { 'access-control-allow-origin': '*' } });
+      });
+      let beforeNavigation;
+      await captureNavigation(page, (state) => { beforeNavigation = state; });
+      if (mode === 'modal') {
+        await open(page, `?env=${env}`);
+      } else {
+        await page.goto(`${fixture}?inline&env=${env}`);
+        await expect(page.locator('html')).toHaveAttribute('data-ready', 'true');
+      }
+      await freeze(page);
+      await page.getByRole('textbox', { name: 'College email address' }).fill(' student@School.Example.ORG ');
+      await expect(page.getByRole('checkbox')).not.toBeChecked();
+      await page.getByRole('textbox', { name: 'College email address' }).press('Enter');
+      const destination = env === 'prod'
+        ? 'http://www.adobe.com/apps/a/school.example.org?assign_pac=2300&sdid=XFWLH43Y'
+        : stageDestination;
+      await expect(page).toHaveURL(destination.replace('http:', 'https:'));
+      expect(endpoint).toBe(`https://edu-org${env === 'prod' ? '' : '-stage'}.adobe.io/v1/entitlements`);
+      await expect.poll(() => beforeNavigation).toMatchObject({ destination, state: 'form', result: false, cta: false });
+    });
+  });
 });
 
 test('technical failure supports retry; backdrop close aborts a pending request', async ({ page }) => {

@@ -228,21 +228,8 @@
   padding: 84px 19px 72px;
 }
 
-.entitlement-check[data-state="success"] .entitlement-check-result {
-  min-height: 408px;
-  padding-top: 72px;
-}
-
 .entitlement-check-result .entitlement-check-heading {
   margin-bottom: 16px;
-}
-
-.entitlement-check[data-state="success"] .entitlement-check-heading {
-  max-width: 202px;
-}
-
-.entitlement-check-heading-lead {
-  display: block;
 }
 
 .entitlement-check-result .entitlement-check-description {
@@ -255,20 +242,6 @@
   margin-top: 28px;
   font-size: 17px;
   line-height: 21px;
-}
-
-.entitlement-check-result .entitlement-check-continue {
-  min-width: min(170px, 100%);
-  margin-top: 24px;
-  overflow-wrap: anywhere;
-}
-
-.entitlement-check-checkmark {
-  display: block;
-  width: 32px;
-  height: 32px;
-  margin-bottom: 32px;
-  background: url('./checkmark.svg') center / contain no-repeat;
 }
 
 html[dir="rtl"] .entitlement-check-modal button.dialog-close {
@@ -293,14 +266,6 @@ html[dir="rtl"] .entitlement-check-modal button.dialog-close {
     max-width: 400px;
   }
 
-  .entitlement-check[data-state="success"] .entitlement-check-heading {
-    max-width: 500px;
-  }
-
-  .entitlement-check-heading-lead {
-    display: inline;
-  }
-
   .entitlement-check-fields {
     margin: 0 52px;
     padding: 24px 0 36px;
@@ -309,11 +274,6 @@ html[dir="rtl"] .entitlement-check-modal button.dialog-close {
   .entitlement-check-result {
     min-height: 350px;
     padding: 90px 52px 81px;
-  }
-
-  .entitlement-check[data-state="success"] .entitlement-check-result {
-    min-height: 350px;
-    padding: 59px 52px 82px;
   }
 
   .entitlement-check-error-slot {

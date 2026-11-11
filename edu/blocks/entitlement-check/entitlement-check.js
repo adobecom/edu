@@ -14,8 +14,7 @@ const PERSONAL_EMAIL_DOMAINS = new Set([
 const REQUIRED_KEYS = [
   'form-heading', 'form-description', 'email-label', 'email-placeholder',
   'submit-label', 'legal-copy', 'required-error', 'invalid-email-error',
-  'service-error', 'success-heading', 'success-description',
-  'success-cta', 'rejected-heading',
+  'service-error', 'rejected-heading',
   'rejected-description', 'rejected-cta',
 ];
 let instance = 0;
@@ -53,26 +52,6 @@ function heading(config, key) {
   const element = authored ? authored.cloneNode(true) : document.createElement('h2');
   if (!authored) element.textContent = config[key].textContent.trim();
   element.className = 'entitlement-check-heading';
-  if (key === 'success-heading' && Intl.Segmenter && !element.querySelector('br')) {
-    const [first, second] = new Intl.Segmenter(document.documentElement.lang || undefined, { granularity: 'sentence' }).segment(element.textContent);
-    if (second) {
-      // Separate the mobile lead sentence without replacing localized copy or inline markup.
-      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
-      let node = walker.nextNode();
-      let offset = first.segment.length;
-      while (offset > node.length) {
-        offset -= node.length;
-        node = walker.nextNode();
-      }
-      const range = document.createRange();
-      range.selectNodeContents(element);
-      range.setEnd(node, offset);
-      const lead = document.createElement('span');
-      lead.className = 'entitlement-check-heading-lead';
-      lead.append(range.extractContents());
-      element.prepend(lead);
-    }
-  }
   return element;
 }
 
@@ -81,8 +60,10 @@ export default async function init(block) {
   const modal = block.closest('.dialog-modal');
   const { getConfig } = await import(`${getLibs()}/utils/utils.js`);
   if (modal?.dataset.closing) return;
-  const host = getConfig().env?.name === 'prod'
+  const isProd = getConfig().env?.name === 'prod';
+  const host = isProd
     ? 'https://edu-org.adobe.io' : 'https://edu-org-stage.adobe.io';
+  const redirectHost = isProd ? 'http://www.adobe.com' : 'http://www.stage.adobe.com';
   instance += 1;
   const id = `entitlement-check-email-${instance}`;
   const text = (key) => config[key].textContent.trim();
@@ -173,14 +154,34 @@ export default async function init(block) {
   let controller;
   let requestTimer;
   let inputTracked = false;
-  let analyticsModule;
+  let sendAnalytics;
+  let analyticsLoading = false;
+  const analyticsQueue = [];
+
+  function dispatchAnalytics(name) {
+    sendAnalytics(name).catch(() => logError('analytics event failed'));
+  }
 
   function trackEvent(name) {
     if (disposed || !block.isConnected || modal?.dataset.closing) return;
-    if (!analyticsModule) analyticsModule = import(`${getLibs()}/martech/helpers.js`);
-    analyticsModule
-      .then(({ sendAnalytics }) => sendAnalytics(`entitlement-check:${name}`))
-      .catch(() => logError('analytics event failed'));
+    const eventName = `entitlement-check:${name}`;
+    if (sendAnalytics) {
+      dispatchAnalytics(eventName);
+      return;
+    }
+    analyticsQueue.push(eventName);
+    if (analyticsLoading) return;
+    analyticsLoading = true;
+    import(`${getLibs()}/martech/helpers.js`)
+      .then((module) => {
+        sendAnalytics = module.sendAnalytics;
+        analyticsQueue.splice(0).forEach(dispatchAnalytics);
+      })
+      .catch(() => {
+        analyticsQueue.length = 0;
+        logError('analytics event failed');
+      })
+      .finally(() => { analyticsLoading = false; });
   }
 
   function dispose(event) {
@@ -225,34 +226,16 @@ export default async function init(block) {
     if (consent.checked) trackEvent('checkbox-checked');
   });
 
-  function showResult(eligible, domain) {
-    const prefix = eligible ? 'success' : 'rejected';
+  function showRejection() {
     const result = document.createElement('div');
     result.className = 'entitlement-check-result';
-    const title = heading(config, `${prefix}-heading`);
+    const title = heading(config, 'rejected-heading');
     title.tabIndex = -1;
-    if (eligible) {
-      const checkmark = document.createElement('span');
-      checkmark.className = 'entitlement-check-checkmark';
-      checkmark.setAttribute('aria-hidden', 'true');
-      result.append(checkmark);
-    }
-    result.append(title, content(config, `${prefix}-description`, 'entitlement-check-description'));
-    if (eligible) {
-      const destination = `https://adobe.com/apps/a/${encodeURIComponent(domain)}`;
-      const link = document.createElement('a');
-      link.className = 'con-button blue entitlement-check-continue';
-      link.textContent = text('success-cta');
-      link.href = destination;
-      link.addEventListener('click', dispose);
-      result.append(link);
-    } else {
-      const link = config['rejected-cta'].querySelector('a').cloneNode(true);
-      link.className = 'con-button blue entitlement-check-trial';
-      result.append(link);
-    }
+    const link = config['rejected-cta'].querySelector('a').cloneNode(true);
+    link.className = 'con-button blue entitlement-check-trial';
+    result.append(title, content(config, 'rejected-description', 'entitlement-check-description'), link);
     block.replaceChildren(result);
-    block.dataset.state = prefix;
+    block.dataset.state = 'rejected';
     modal?.setAttribute('aria-label', title.textContent.trim());
     title.focus();
   }
@@ -319,9 +302,14 @@ export default async function init(block) {
     trackEvent(eligible ? 'eligible' : 'ineligible');
     const modalLabel = modal?.getAttribute('aria-label') ?? null;
     try {
-      showResult(eligible, domain);
+      if (eligible) {
+        window.location.assign(`${redirectHost}/apps/a/${encodeURIComponent(domain)}?assign_pac=2300&sdid=XFWLH43Y`);
+        dispose();
+      } else {
+        showRejection();
+      }
     } catch (e) {
-      logError('result rendering failed');
+      logError(eligible ? 'eligibility redirect failed' : 'result rendering failed');
       if (disposed || !block.isConnected || modal?.dataset.closing) return;
       block.replaceChildren(form);
       block.dataset.state = 'form';

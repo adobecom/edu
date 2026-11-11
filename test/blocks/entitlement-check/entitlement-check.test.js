@@ -39,7 +39,7 @@ describe('Entitlement check', () => {
   beforeEach(async () => {
     analyticsEvents.length = 0;
     clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-    request = sinon.stub(window, 'fetch').resolves({ ok: true, json: async () => ({ status: 'ELIGIBLE', reason: 'JIT_ACCOUNT_CREATION_ON' }) });
+    request = sinon.stub(window, 'fetch').resolves({ ok: true, json: async () => ({ status: 'NOT_ELIGIBLE' }) });
     originalLana = window.lana;
     window.lana = { log: sinon.spy() };
     setConfig({ env: { name: 'stage' } });
@@ -93,7 +93,7 @@ describe('Entitlement check', () => {
       'entitlement-check:email-input',
       'entitlement-check:checkbox-checked',
       'entitlement-check:form-submit',
-      'entitlement-check:eligible',
+      'entitlement-check:ineligible',
     ]);
   });
 
@@ -109,21 +109,19 @@ describe('Entitlement check', () => {
     expect(request.called).to.equal(false);
   });
 
-  ['HAS_ACCESS', 'ELIGIBLE', 'NOT_ELIGIBLE'].forEach((status) => {
-    it(`tracks a single valid submission and the normalized ${status} return`, async () => {
-      let resolve;
-      request.returns(new Promise((done) => { resolve = done; }));
-      await submit();
-      await submit();
-      expect(request.callCount).to.equal(1);
-      expect(analyticsEvents).to.deep.equal(['entitlement-check:form-submit']);
-      resolve({ ok: true, json: async () => ({ status }) });
-      await clock.tickAsync(0);
-      expect(analyticsEvents).to.deep.equal([
-        'entitlement-check:form-submit',
-        `entitlement-check:${status === 'NOT_ELIGIBLE' ? 'ineligible' : 'eligible'}`,
-      ]);
-    });
+  it('tracks a single valid submission and the ineligible return', async () => {
+    let resolve;
+    request.returns(new Promise((done) => { resolve = done; }));
+    await submit();
+    await submit();
+    expect(request.callCount).to.equal(1);
+    expect(analyticsEvents).to.deep.equal(['entitlement-check:form-submit']);
+    resolve({ ok: true, json: async () => ({ status: 'NOT_ELIGIBLE' }) });
+    await clock.tickAsync(0);
+    expect(analyticsEvents).to.deep.equal([
+      'entitlement-check:form-submit',
+      'entitlement-check:ineligible',
+    ]);
   });
 
   it('tracks a retry as another submission without treating a service failure as ineligibility', async () => {
@@ -134,7 +132,7 @@ describe('Entitlement check', () => {
     expect(analyticsEvents).to.deep.equal([
       'entitlement-check:form-submit',
       'entitlement-check:form-submit',
-      'entitlement-check:eligible',
+      'entitlement-check:ineligible',
     ]);
   });
 
@@ -142,7 +140,7 @@ describe('Entitlement check', () => {
     sinon.stub(analyticsEvents, 'push').throws(new Error('Analytics failure for student@school.example.org'));
     await submit();
     expect(request.calledOnce).to.equal(true);
-    expect(block.dataset.state).to.equal('success');
+    expect(block.dataset.state).to.equal('rejected');
     expect(window.lana.log.callCount).to.equal(2);
     expect(window.lana.log.args.every(([message]) => message === 'Entitlement check: analytics event failed')).to.equal(true);
     expect(JSON.stringify(window.lana.log.args)).not.to.include('student@school.example.org');
@@ -189,10 +187,10 @@ describe('Entitlement check', () => {
     expect(consent.checked).to.equal(false);
     expect(consent.hasAttribute('aria-invalid')).to.equal(false);
     expect(request.calledOnce).to.equal(true);
-    expect(block.dataset.state).to.equal('success');
+    expect(block.dataset.state).to.equal('rejected');
     expect(analyticsEvents).to.deep.equal([
       'entitlement-check:form-submit',
-      'entitlement-check:eligible',
+      'entitlement-check:ineligible',
     ]);
   });
 
@@ -205,7 +203,7 @@ describe('Entitlement check', () => {
         `<div class="entitlement-check"><div><div>checkbox-error</div><div>${message}</div></div>`,
       ));
       await submit('student@school.example.org', false);
-      expect(block.dataset.state).to.equal('success');
+      expect(block.dataset.state).to.equal('rejected');
       expect(request.calledOnce).to.equal(true);
       expect(window.lana.log.called).to.equal(false);
     });
@@ -217,7 +215,7 @@ describe('Entitlement check', () => {
     await mount(false);
     document.body.append(modal);
     await submit();
-    expect(block.dataset.state).to.equal('success');
+    expect(block.dataset.state).to.equal('rejected');
   });
 
   ['', 'not-an-email', 'student@'].forEach((email) => {
@@ -271,7 +269,7 @@ describe('Entitlement check', () => {
     it(`allows the unlisted domain ${domain} rather than matching a substring`, async () => {
       await submit(`student@${domain}`);
       expect(request.calledOnce).to.equal(true);
-      expect(block.dataset.state).to.equal('success');
+      expect(block.dataset.state).to.equal('rejected');
     });
   });
 
@@ -290,7 +288,7 @@ describe('Entitlement check', () => {
     expect(input.hasAttribute('aria-invalid')).to.equal(false);
     await submit();
     expect(request.calledOnce).to.equal(true);
-    expect(block.dataset.state).to.equal('success');
+    expect(block.dataset.state).to.equal('rejected');
   });
 
   it('keeps existing fragments usable with the requested default when the optional message row is absent', async () => {
@@ -331,89 +329,22 @@ describe('Entitlement check', () => {
       expect(options.headers).to.deep.equal({ 'Content-Type': 'application/json', 'x-api-key': 'acom-education' });
       expect(JSON.parse(options.body)).to.deep.equal({ email: 'student@school.example.org', offerId: '92645C312E8ADE0DB7071A82AD389C8E' });
       expect(options.signal.aborted).to.equal(false);
-      expect(block.dataset.state).to.equal('success');
+      expect(block.dataset.state).to.equal('rejected');
     });
   });
 
-  ['HAS_ACCESS', 'ELIGIBLE'].forEach((status) => {
-    it(`shows persistent authored success for ${status} with a computed, normalized CTA`, async () => {
-      request.resolves({ ok: true, json: async () => ({ status }) });
-      await submit(' student@School.Example.ORG ');
-      expect(block.dataset.state).to.equal('success');
-      expect(block.querySelector('form')).to.equal(null);
-      expect(block.querySelector('.entitlement-check-heading').textContent).to.include('Congratulations!');
-      const link = block.querySelector('.entitlement-check-continue');
-      expect(link.textContent).to.equal('Continue to Adobe');
-      expect(link.classList.contains('con-button')).to.equal(true);
-      expect(link.hasAttribute('target')).to.equal(false);
-      expect(link.href).to.equal('https://adobe.com/apps/a/school.example.org');
-      expect(document.activeElement).to.equal(block.querySelector('h2'));
-      expect(modal.getAttribute('aria-label')).to.include('Congratulations!');
-      expect(clock.countTimers()).to.equal(0);
-      await clock.tickAsync(60000);
-      expect(block.isConnected).to.equal(true);
-      expect(block.dataset.state).to.equal('success');
-      expect(clock.countTimers()).to.equal(0);
+  ['Obsolete success content', ' '].forEach((value) => {
+    it(`ignores legacy success authoring rows containing ${JSON.stringify(value)}`, async () => {
+      close();
+      modal.remove();
+      const rows = ['success-heading', 'success-description', 'success-cta', 'success-redirect-notice']
+        .map((key) => `<div><div>${key}</div><div>${value}</div></div>`).join('');
+      await mount(true, fixture.replace('<div class="entitlement-check">', `<div class="entitlement-check">${rows}`));
+      await submit();
+      expect(block.dataset.state).to.equal('rejected');
+      expect(block.textContent).not.to.include('Obsolete success content');
+      expect(window.lana.log.called).to.equal(false);
     });
-  });
-
-  it('preserves rich heading markup when separating the mobile lead sentence', async () => {
-    close();
-    modal.remove();
-    await mount(true, fixture.replace(
-      'Congratulations! You have free access.',
-      '<em>Congratulations!</em> You have <strong>free access.</strong>',
-    ));
-    await submit();
-    const title = block.querySelector('.entitlement-check-heading');
-    expect(title.textContent).to.equal('Congratulations! You have free access.');
-    expect(title.querySelector('.entitlement-check-heading-lead em').textContent).to.equal('Congratulations!');
-    expect(title.querySelector('strong').textContent).to.equal('free access.');
-  });
-
-  it('retains a single-sentence heading and a custom authored CTA label', async () => {
-    close();
-    modal.remove();
-    await mount(true, fixture
-      .replace('Congratulations! You have free access.', 'Your access is ready.')
-      .replace('Continue to Adobe', 'Continue to your apps'));
-    await submit();
-    expect(block.querySelector('.entitlement-check-heading').textContent).to.equal('Your access is ready.');
-    expect(block.querySelector('.entitlement-check-heading-lead')).to.equal(null);
-    const link = block.querySelector('.entitlement-check-continue');
-    expect(link.textContent).to.equal('Continue to your apps');
-    expect(link.href).to.equal('https://adobe.com/apps/a/school.example.org');
-  });
-
-  it('uses authored link text as a single CTA with the computed same-tab destination', async () => {
-    close();
-    modal.remove();
-    await mount(true, fixture.replace(
-      'Continue to Adobe',
-      '<a href="https://example.com" target="_blank"><em>Continue to Adobe</em></a>',
-    ));
-    await submit();
-    const link = block.querySelector('.entitlement-check-continue');
-    expect(link.textContent).to.equal('Continue to Adobe');
-    expect(link.querySelector('a')).to.equal(null);
-    expect(link.href).to.equal('https://adobe.com/apps/a/school.example.org');
-    expect(link.hasAttribute('target')).to.equal(false);
-    link.addEventListener('click', (event) => event.preventDefault());
-    link.click();
-    expect(clock.countTimers()).to.equal(0);
-  });
-
-  it('ignores an obsolete authored redirect notice in existing fragments', async () => {
-    close();
-    modal.remove();
-    await mount(true, fixture.replace(
-      '<div class="entitlement-check">',
-      '<div class="entitlement-check"><div><div>success-redirect-notice</div><div>Obsolete redirect message</div></div>',
-    ));
-    await submit();
-    expect(block.dataset.state).to.equal('success');
-    expect(block.textContent).not.to.include('Obsolete redirect message');
-    expect(clock.countTimers()).to.equal(0);
   });
 
   it('shows the authored rejected CTA without a redirect for another business status', async () => {
@@ -450,7 +381,7 @@ describe('Entitlement check', () => {
       )).to.equal(true);
       await submit();
       expect(request.callCount).to.equal(2);
-      expect(block.dataset.state).to.equal('success');
+      expect(block.dataset.state).to.equal('rejected');
     });
   });
 
@@ -469,7 +400,7 @@ describe('Entitlement check', () => {
   });
 
   it('recovers from result construction failure without logging private error details', async () => {
-    const render = sinon.stub(document, 'createRange').throws(
+    const render = sinon.stub(Element.prototype, 'cloneNode').throws(
       new Error('Private response for student@school.example.org'),
     );
     await submit();
@@ -487,42 +418,39 @@ describe('Entitlement check', () => {
     render.restore();
     await submit();
     expect(request.callCount).to.equal(2);
-    expect(block.dataset.state).to.equal('success');
+    expect(block.dataset.state).to.equal('rejected');
   });
 
-  ['ELIGIBLE', 'NOT_ELIGIBLE'].forEach((status) => {
-    it(`restores the form and modal label after partially displaying ${status}`, async () => {
-      request.resolves({ ok: true, json: async () => ({ status }) });
-      modal.setAttribute('aria-label', 'Check eligibility');
-      const originalFocus = HTMLElement.prototype.focus;
-      const render = sinon.stub(HTMLElement.prototype, 'focus').callsFake(function focusResult() {
-        if (this.matches('.entitlement-check-result .entitlement-check-heading')) {
-          throw new Error('Result focus failed');
-        }
-        originalFocus.call(this);
-      });
-      await submit();
-      const input = block.querySelector('input');
-      expect(block.dataset.state).to.equal('form');
-      expect(block.querySelector('.entitlement-check-result')).to.equal(null);
-      expect(input.value).to.equal('student@school.example.org');
-      expect(input.readOnly).to.equal(false);
-      expect(document.activeElement).to.equal(input);
-      expect(block.querySelector('[role="alert"]').textContent).to.include('Please try again.');
-      expect(block.querySelector('button').disabled).to.equal(false);
-      expect(block.querySelector('.spectrum-ProgressCircle').hidden).to.equal(true);
-      expect(block.querySelector('form').hasAttribute('aria-busy')).to.equal(false);
-      expect(block.querySelector('[role="status"]')).to.equal(null);
-      expect(modal.getAttribute('aria-label')).to.equal('Check eligibility');
-      expect(window.lana.log.firstCall.args[0]).to.equal('Entitlement check: result rendering failed');
-      expect(clock.countTimers()).to.equal(0);
-      await clock.tickAsync(2000);
-      expect(block.dataset.state).to.equal('form');
-      render.restore();
-      await submit();
-      expect(request.callCount).to.equal(2);
-      expect(block.dataset.state).to.equal(status === 'ELIGIBLE' ? 'success' : 'rejected');
+  it('restores the form and modal label after partially displaying rejection', async () => {
+    modal.setAttribute('aria-label', 'Check eligibility');
+    const originalFocus = HTMLElement.prototype.focus;
+    const render = sinon.stub(HTMLElement.prototype, 'focus').callsFake(function focusResult() {
+      if (this.matches('.entitlement-check-result .entitlement-check-heading')) {
+        throw new Error('Result focus failed');
+      }
+      originalFocus.call(this);
     });
+    await submit();
+    const input = block.querySelector('input');
+    expect(block.dataset.state).to.equal('form');
+    expect(block.querySelector('.entitlement-check-result')).to.equal(null);
+    expect(input.value).to.equal('student@school.example.org');
+    expect(input.readOnly).to.equal(false);
+    expect(document.activeElement).to.equal(input);
+    expect(block.querySelector('[role="alert"]').textContent).to.include('Please try again.');
+    expect(block.querySelector('button').disabled).to.equal(false);
+    expect(block.querySelector('.spectrum-ProgressCircle').hidden).to.equal(true);
+    expect(block.querySelector('form').hasAttribute('aria-busy')).to.equal(false);
+    expect(block.querySelector('[role="status"]')).to.equal(null);
+    expect(modal.getAttribute('aria-label')).to.equal('Check eligibility');
+    expect(window.lana.log.firstCall.args[0]).to.equal('Entitlement check: result rendering failed');
+    expect(clock.countTimers()).to.equal(0);
+    await clock.tickAsync(2000);
+    expect(block.dataset.state).to.equal('form');
+    render.restore();
+    await submit();
+    expect(request.callCount).to.equal(2);
+    expect(block.dataset.state).to.equal('rejected');
   });
 
   it('shows only a loading indicator and prevents duplicate requests without a status message', async () => {
@@ -543,10 +471,10 @@ describe('Entitlement check', () => {
     form.requestSubmit();
     expect(request.callCount).to.equal(1);
     expect(block.querySelectorAll('.spectrum-ProgressCircle').length).to.equal(1);
-    resolve({ ok: true, json: async () => ({ status: 'ELIGIBLE' }) });
+    resolve({ ok: true, json: async () => ({ status: 'NOT_ELIGIBLE' }) });
     await clock.tickAsync(0);
     expect(progress.hidden).to.equal(true);
-    expect(block.dataset.state).to.equal('success');
+    expect(block.dataset.state).to.equal('rejected');
   });
 
   it('preserves the authored CTA name while pending and after failure', async () => {
@@ -587,7 +515,7 @@ describe('Entitlement check', () => {
       { tags: 'entitlement-check', severity: 'error' },
     )).to.equal(true);
     await submit();
-    expect(block.dataset.state).to.equal('success');
+    expect(block.dataset.state).to.equal('rejected');
   });
 
   it('cancels the request and ignores late responses after the owning modal closes', async () => {
@@ -621,7 +549,7 @@ describe('Entitlement check', () => {
     expect(block.querySelector('input').value).to.equal('');
     expect(block.querySelector('[type="checkbox"]').checked).to.equal(false);
     await submit();
-    expect(block.dataset.state).to.equal('success');
+    expect(block.dataset.state).to.equal('rejected');
   });
 
   it('keeps the form usable after a back-forward-cache page transition', async () => {
@@ -635,7 +563,7 @@ describe('Entitlement check', () => {
     expect(block.querySelector('button').disabled).to.equal(false);
     expect(block.querySelector('.spectrum-ProgressCircle').hidden).to.equal(true);
     await submit();
-    expect(block.dataset.state).to.equal('success');
+    expect(block.dataset.state).to.equal('rejected');
   });
 
   it('reports invalid authoring rather than inventing a trial destination', async () => {
@@ -673,22 +601,6 @@ describe('Entitlement check', () => {
     expect(block.querySelector('.entitlement-check-trial').textContent).to.equal('Get my free trial');
   });
 
-  it('keeps the inline success CTA available without automatic navigation after unrelated modal closure', async () => {
-    close();
-    modal.remove();
-    await mount(true, fixture, false);
-    await submit('student@School.Example.ORG');
-    expect(block.dataset.state).to.equal('success');
-    expect(block.querySelector('.entitlement-check-continue').href).to.equal('https://adobe.com/apps/a/school.example.org');
-    expect(document.activeElement).to.equal(block.querySelector('h2'));
-    close('another-modal');
-    await clock.tickAsync(60000);
-    expect(block.dataset.state).to.equal('success');
-    expect(clock.countTimers()).to.equal(0);
-    window.dispatchEvent(new Event('pagehide'));
-    expect(clock.countTimers()).to.equal(0);
-  });
-
   it('ignores modal closure inline but aborts its pending request on page exit', async () => {
     close();
     modal.remove();
@@ -708,27 +620,24 @@ describe('Entitlement check', () => {
     expect(window.lana.log.called).to.equal(false);
   });
 
-  ['ELIGIBLE', 'NOT_ELIGIBLE'].forEach((status) => {
-    it(`recovers from ${status} result focus failure outside a modal`, async () => {
-      close();
-      modal.remove();
-      await mount(true, fixture, false);
-      request.resolves({ ok: true, json: async () => ({ status }) });
-      const originalFocus = HTMLElement.prototype.focus;
-      const render = sinon.stub(HTMLElement.prototype, 'focus').callsFake(function focusResult() {
-        if (this.matches('.entitlement-check-result .entitlement-check-heading')) throw new Error('Result focus failed');
-        originalFocus.call(this);
-      });
-      await submit();
-      expect(block.dataset.state).to.equal('form');
-      expect(block.querySelector('[role="alert"]').textContent).to.include('Please try again.');
-      expect(document.activeElement).to.equal(block.querySelector('input'));
-      expect(modal.hasAttribute('aria-label')).to.equal(false);
-      expect(clock.countTimers()).to.equal(0);
-      expect(window.lana.log.firstCall.args[0]).to.equal('Entitlement check: result rendering failed');
-      render.restore();
-      await submit();
-      expect(block.dataset.state).to.equal(status === 'ELIGIBLE' ? 'success' : 'rejected');
+  it('recovers from rejection focus failure outside a modal', async () => {
+    close();
+    modal.remove();
+    await mount(true, fixture, false);
+    const originalFocus = HTMLElement.prototype.focus;
+    const render = sinon.stub(HTMLElement.prototype, 'focus').callsFake(function focusResult() {
+      if (this.matches('.entitlement-check-result .entitlement-check-heading')) throw new Error('Result focus failed');
+      originalFocus.call(this);
     });
+    await submit();
+    expect(block.dataset.state).to.equal('form');
+    expect(block.querySelector('[role="alert"]').textContent).to.include('Please try again.');
+    expect(document.activeElement).to.equal(block.querySelector('input'));
+    expect(modal.hasAttribute('aria-label')).to.equal(false);
+    expect(clock.countTimers()).to.equal(0);
+    expect(window.lana.log.firstCall.args[0]).to.equal('Entitlement check: result rendering failed');
+    render.restore();
+    await submit();
+    expect(block.dataset.state).to.equal('rejected');
   });
 });
