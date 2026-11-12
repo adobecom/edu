@@ -63,7 +63,7 @@ export default async function init(block) {
   const isProd = getConfig().env?.name === 'prod';
   const host = isProd
     ? 'https://edu-org.adobe.io' : 'https://edu-org-stage.adobe.io';
-  const redirectHost = isProd ? 'http://www.adobe.com' : 'http://www.stage.adobe.com';
+  const redirectHost = isProd ? 'https://www.adobe.com' : 'https://www.stage.adobe.com';
   instance += 1;
   const id = `entitlement-check-email-${instance}`;
   const text = (key) => config[key].textContent.trim();
@@ -303,7 +303,7 @@ export default async function init(block) {
     const modalLabel = modal?.getAttribute('aria-label') ?? null;
     try {
       if (eligible) {
-        window.location.assign(`${redirectHost}/apps/a/${encodeURIComponent(domain)}?assign_pac=2300&sdid=XFWLH43Y`);
+        window.location.assign(`${redirectHost}/home/a/${encodeURIComponent(domain)}?pa_code=PA-2300`);
         dispose();
       } else {
         showRejection();

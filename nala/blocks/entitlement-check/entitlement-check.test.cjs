@@ -3,9 +3,9 @@ const AxeBuilder = require('@axe-core/playwright').default;
 
 const fixture = '/test/blocks/entitlement-check/integration.html';
 const service = /^https:\/\/edu-org(?:-stage)?\.adobe\.io\/v1\/entitlements$/;
-const adobeDestination = /^https?:\/\/www\.(?:stage\.)?adobe\.com\/apps\/a\//;
-const stageDestination = 'http://www.stage.adobe.com/apps/a/school.example.org?assign_pac=2300&sdid=XFWLH43Y';
-const stageBrowserDestination = stageDestination.replace('http:', 'https:');
+const adobeDestination = /^https:\/\/www\.(?:stage\.)?adobe\.com\/home\/a\//;
+const stageDestination = 'https://www.stage.adobe.com/home/a/school.example.org?pa_code=PA-2300';
+const stageBrowserDestination = stageDestination;
 
 async function open(page, query = '') {
   await page.goto(`${fixture}${query}`);
@@ -388,9 +388,9 @@ test('long validation copy remains reachable on a narrow, short viewport', async
       await expect(page.getByRole('checkbox')).not.toBeChecked();
       await page.getByRole('textbox', { name: 'College email address' }).press('Enter');
       const destination = env === 'prod'
-        ? 'http://www.adobe.com/apps/a/school.example.org?assign_pac=2300&sdid=XFWLH43Y'
+        ? 'https://www.adobe.com/home/a/school.example.org?pa_code=PA-2300'
         : stageDestination;
-      await expect(page).toHaveURL(destination.replace('http:', 'https:'));
+      await expect(page).toHaveURL(destination);
       expect(endpoint).toBe(`https://edu-org${env === 'prod' ? '' : '-stage'}.adobe.io/v1/entitlements`);
       await expect.poll(() => beforeNavigation).toMatchObject({ destination, state: 'form', result: false, cta: false });
     });
