@@ -6,6 +6,7 @@ const service = /^https:\/\/edu-org(?:-stage)?\.adobe\.io\/v1\/entitlements$/;
 const adobeDestination = /^https:\/\/www\.(?:stage\.)?adobe\.com\/home\/a\//;
 const stageDestination = 'https://www.stage.adobe.com/home/a/school.example.org?pa_code=PA-2300';
 const stageBrowserDestination = stageDestination;
+const progressModule = '**/libs/features/spectrum-web-components/dist/progress-circle.js';
 
 async function open(page, query = '') {
   await page.goto(`${fixture}${query}`);
@@ -102,6 +103,103 @@ async function relativeBox(page, selector) {
   });
 }
 
+test('preloads the shared indicator without delaying the standalone form or eligibility request', async ({ page }) => {
+  let indicatorRoute;
+  let pendingRoute;
+  await page.route(progressModule, (route) => { indicatorRoute = route; });
+  await page.route(service, (route) => { pendingRoute = route; });
+  await page.goto(`${fixture}?inline`);
+  await expect(page.locator('html')).toHaveAttribute('data-ready', 'true');
+  await expect.poll(() => Boolean(indicatorRoute)).toBe(true);
+  await page.evaluate(() => document.fonts.ready);
+  const submit = page.locator('.entitlement-check-submit');
+  const label = submit.locator('.entitlement-check-submit-label');
+  const progress = submit.locator('sp-progress-circle');
+  const initial = await submit.boundingBox();
+  await page.getByRole('textbox').fill('student@school.example.org');
+  await submit.click();
+  await expect.poll(() => Boolean(pendingRoute)).toBe(true);
+  await expect(page.locator('.entitlement-check form')).toHaveAttribute('aria-busy', 'true');
+  await expect(submit).toBeDisabled();
+  await expect(submit).toHaveAccessibleName('Check eligibility');
+  await expect(progress).toBeHidden();
+  await expect(label).toBeVisible();
+  await indicatorRoute.fallback();
+  await expect(progress).toBeVisible();
+  await expect(progress.locator('.track')).toBeVisible();
+  await expect(label).toBeHidden();
+  const loading = await submit.boundingBox();
+  expect(loading.width).toBe(initial.width);
+  expect(loading.height).toBe(initial.height);
+  await pendingRoute.fulfill({ status: 503, headers: { 'access-control-allow-origin': '*' } });
+  await expect(page.getByRole('alert')).toContainText('Please try again.');
+  await expect(progress).toBeHidden();
+  await expect(label).toBeVisible();
+  await expect(submit).toBeEnabled();
+});
+
+test('keeps the authored label and eligibility usable when the shared indicator fails to load', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.entitlementErrors = [];
+    window.lana = {
+      log(message, options) {
+        window.entitlementErrors.push({ message, options });
+      },
+    };
+  });
+  await page.route(progressModule, (route) => route.abort());
+  let pendingRoute;
+  await page.route(service, (route) => { pendingRoute = route; });
+  await open(page);
+  await expect.poll(() => page.evaluate(() => window.entitlementErrors)).toEqual([{
+    message: 'Entitlement check: progress indicator initialization failed',
+    options: { tags: 'entitlement-check', severity: 'error' },
+  }]);
+  await page.getByRole('textbox').fill('student@school.example.org');
+  const submit = page.locator('.entitlement-check-submit');
+  await submit.click();
+  await expect.poll(() => Boolean(pendingRoute)).toBe(true);
+  await expect(submit).toBeDisabled();
+  await expect(submit).toHaveAccessibleName('Check eligibility');
+  await expect(submit.locator('.entitlement-check-submit-label')).toBeVisible();
+  await expect(submit.locator('sp-progress-circle')).toBeHidden();
+  await pendingRoute.fulfill({ json: { status: 'NOT_ELIGIBLE' }, headers: { 'access-control-allow-origin': '*' } });
+  await expect(page.locator('.entitlement-check')).toHaveAttribute('data-state', 'rejected');
+});
+
+['rejection', 'modal closure'].forEach((outcome) => {
+  test(`does not initialize a stale indicator after ${outcome}`, async ({ page }) => {
+    let indicatorRoute;
+    await page.route(progressModule, (route) => { indicatorRoute = route; });
+    await page.route(service, (route) => route.fulfill({ json: { status: 'NOT_ELIGIBLE' }, headers: { 'access-control-allow-origin': '*' } }));
+    await open(page);
+    await expect.poll(() => Boolean(indicatorRoute)).toBe(true);
+    const progress = await page.locator('sp-progress-circle').elementHandle();
+    if (outcome === 'rejection') {
+      await page.getByRole('textbox').fill('student@school.example.org');
+      await page.locator('.entitlement-check-submit').click();
+      await expect(page.locator('.entitlement-check')).toHaveAttribute('data-state', 'rejected');
+    } else {
+      await page.locator('.dialog-close').click();
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+    }
+    await indicatorRoute.fallback();
+    await page.evaluate(async () => {
+      await Promise.all([
+        customElements.whenDefined('sp-theme'),
+        customElements.whenDefined('sp-progress-circle'),
+      ]);
+      await new Promise((resolve) => { requestAnimationFrame(resolve); });
+    });
+    expect(await progress.evaluate((element) => ({ connected: element.isConnected, hidden: element.hidden, rendered: Boolean(element.shadowRoot) }))).toEqual({ connected: false, hidden: true, rendered: false });
+    if (outcome === 'rejection') {
+      await expect(page.locator('.entitlement-check')).toHaveAttribute('data-state', 'rejected');
+    } else {
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+    }
+  });
+});
+
 [
   { name: 'desktop', width: 1440, height: 900 },
   { name: 'tablet', width: 768, height: 1024 },
@@ -126,7 +224,7 @@ async function relativeBox(page, selector) {
     const input = block.getByRole('textbox', { name: 'College email address' });
     const consent = block.getByRole('checkbox');
     const submit = block.locator('.entitlement-check-submit');
-    const progress = block.locator('.spectrum-ProgressCircle');
+    const progress = block.locator('sp-progress-circle');
     const error = block.getByRole('alert');
     await expect(page.getByRole('dialog')).toHaveCount(0);
     await expect(page.locator('.entitlement-check-modal')).toHaveCount(0);
@@ -197,9 +295,8 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.afterEach(async ({ page }) => {
-  if (adobeDestination.test(page.url())) {
-    await page.unrouteAll({ behavior: 'wait' });
-  }
+  // Background imports may still be proxied when the fixture is closed.
+  await page.unrouteAll({ behavior: 'ignoreErrors' });
 });
 
 [
@@ -562,7 +659,7 @@ test('technical failure supports retry; backdrop close aborts a pending request'
   { name: 'tablet', width: 768, height: 1024, motion: 'reduce' },
   { name: 'mobile', width: 390, height: 650, motion: 'reduce', forcedColors: true },
 ].forEach(({ name, width, height, motion, forcedColors }) => {
-  test(`${name}: CSS-only submission indicator preserves CTA layout and accessibility`, async ({ page }) => {
+  test(`${name}: shared submission indicator preserves CTA layout and accessibility`, async ({ page }) => {
     await page.setViewportSize({ width, height });
     await page.emulateMedia({ reducedMotion: motion });
     let pendingRoute;
@@ -570,7 +667,7 @@ test('technical failure supports retry; backdrop close aborts a pending request'
     await open(page);
     const input = page.getByRole('textbox', { name: 'College email address' });
     const submit = page.locator('.entitlement-check-submit');
-    const progress = submit.locator('.spectrum-ProgressCircle');
+    const progress = submit.locator('sp-progress-circle');
     const label = submit.locator('.entitlement-check-submit-label');
     const dimensions = ({ width: w, height: h }) => ({ width: w, height: h });
     const initial = dimensions(await submit.boundingBox());
@@ -587,29 +684,29 @@ test('technical failure supports retry; backdrop close aborts a pending request'
     await expect(label).toHaveText('Check eligibility');
     await expect(page.locator('.entitlement-check').getByRole('status')).toHaveCount(0);
     expect(dimensions(await submit.boundingBox())).toEqual(initial);
-    const indicator = await relativeBox(page, '.spectrum-ProgressCircle');
+    const indicator = await relativeBox(page, 'sp-progress-circle');
     const button = await relativeBox(page, '.entitlement-check-submit');
     expect(indicator.width).toBe(20);
     expect(indicator.height).toBe(20);
     expect(indicator.x + indicator.width / 2).toBeCloseTo(button.x + button.width / 2, 1);
     expect(indicator.y + indicator.height / 2).toBeCloseTo(button.y + button.height / 2, 1);
-    const containedMasks = await progress.locator('.spectrum-ProgressCircle-fillMask1, .spectrum-ProgressCircle-fillMask2')
+    await expect(progress.locator('.fill').first()).toHaveCSS('border-top-color', 'rgb(255, 255, 255)');
+    const animations = await progress.locator('.fills, .fillSubMask1, .fillSubMask2')
       .evaluateAll((elements) => elements.map((element) => {
-        const circle = element.closest('.spectrum-ProgressCircle');
-        return element.offsetLeft >= 0 && element.offsetTop >= 0
-          && element.offsetLeft + element.offsetWidth <= circle.clientWidth
-          && element.offsetTop + element.offsetHeight <= circle.clientHeight;
+        const style = getComputedStyle(element);
+        return { name: style.animationName, duration: parseFloat(style.animationDuration) };
       }));
-    expect(containedMasks).toEqual([true, true]);
-    const animations = await progress.locator('.spectrum-ProgressCircle-fills, .spectrum-ProgressCircle-fillSubMask1, .spectrum-ProgressCircle-fillSubMask2')
-      .evaluateAll((elements) => elements.map((element) => getComputedStyle(element).animationName));
-    if (motion === 'reduce') expect(animations).toEqual(['none', 'none', 'none']);
-    else animations.forEach((animation) => expect(animation).toMatch(/^entitlement-check-progress-/));
+    expect(animations).toHaveLength(3);
+    animations.forEach((animation) => {
+      expect(animation.name).toMatch(/^spectrum-/);
+      if (motion === 'reduce') expect(animation.duration).toBe(0);
+      else expect(animation.duration).toBeGreaterThan(0);
+    });
     await checkAccessibility(page);
     if (forcedColors) {
       await page.emulateMedia({ forcedColors: 'active', colorScheme: 'dark' });
-      await expect(progress.locator('.spectrum-ProgressCircle-fill').first()).toHaveCSS('border-top-color', 'rgb(255, 255, 255)');
-      await expect(progress.locator('.spectrum-ProgressCircle-track')).toHaveCSS('border-top-style', 'double');
+      await expect(progress.locator('.fill').first()).not.toHaveCSS('border-top-color', 'rgba(0, 0, 0, 0)');
+      await expect(progress.locator('.track')).toHaveCSS('border-top-style', 'double');
       await expect(progress).toBeVisible();
     }
     await expect.poll(() => Boolean(pendingRoute)).toBe(true);

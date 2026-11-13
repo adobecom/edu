@@ -1,5 +1,3 @@
-@import url("./progress-circle.css");
-
 .dialog-modal.entitlement-check-modal {
   width: 338px;
   max-width: calc(100% - 32px);
@@ -215,8 +213,28 @@
   min-width: 0;
 }
 
-.entitlement-check form[aria-busy="true"] .entitlement-check-submit-label {
+.entitlement-check-submit:has(sp-progress-circle:not([hidden])) .entitlement-check-submit-label {
   visibility: hidden;
+}
+
+.entitlement-check .entitlement-check-progress {
+  --mod-progress-circle-size: 20px;
+  --mod-progress-circle-thickness: 2px;
+
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: block;
+  width: 20px;
+  height: 20px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .entitlement-check-progress {
+    --spectrum-animation-duration-2000: 0s;
+  }
 }
 
 .entitlement-check-result {

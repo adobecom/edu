@@ -4,6 +4,10 @@ import init from '../../../edu/blocks/entitlement-check/entitlement-check.js';
 
 const mockLibs = '/test/blocks/entitlement-check/mocks';
 const { setConfig } = await import(`${mockLibs}/utils/utils.js`);
+await Promise.all([
+  import(`${mockLibs}/features/spectrum-web-components/dist/theme.js`),
+  import(`${mockLibs}/features/spectrum-web-components/dist/progress-circle.js`),
+]);
 const analyticsEvents = [];
 const fixture = await fetch('/test/blocks/entitlement-check/fragment.plain.html').then((response) => response.text());
 const personalEmailError = 'Make sure to use your school email, not your personal email.';
@@ -54,6 +58,7 @@ describe('Entitlement check', () => {
     window._satellite = satellite;
     setConfig({ env: { name: 'stage' } });
     await mount();
+    await clock.tickAsync(0);
   });
 
   afterEach(async () => {
@@ -253,7 +258,7 @@ describe('Entitlement check', () => {
       expect(block.querySelector('[role="alert"]').textContent).to.equal(
         email ? 'Enter a valid email address.' : 'This field is required.',
       );
-      expect(block.querySelector('.spectrum-ProgressCircle').hidden).to.equal(true);
+      expect(block.querySelector('sp-progress-circle').hidden).to.equal(true);
       input.value = 'student@school.example.org';
       input.dispatchEvent(new Event('input'));
       expect(input.hasAttribute('aria-invalid')).to.equal(false);
@@ -286,7 +291,7 @@ describe('Entitlement check', () => {
     expect(block.querySelector('button').disabled).to.equal(false);
     expect(block.querySelector('[type="checkbox"]').disabled).to.equal(false);
     expect(block.querySelector('[type="checkbox"]').checked).to.equal(false);
-    expect(block.querySelector('.spectrum-ProgressCircle').hidden).to.equal(true);
+    expect(block.querySelector('sp-progress-circle').hidden).to.equal(true);
     expect(clock.countTimers()).to.equal(0);
   });
 
@@ -466,7 +471,7 @@ describe('Entitlement check', () => {
       expect(block.querySelector('button').disabled).to.equal(false);
       expect(block.querySelector('[type="checkbox"]').disabled).to.equal(false);
       expect(block.querySelector('[type="checkbox"]').checked).to.equal(true);
-      expect(block.querySelector('.spectrum-ProgressCircle').hidden).to.equal(true);
+      expect(block.querySelector('sp-progress-circle').hidden).to.equal(true);
       expect(block.querySelector('form').hasAttribute('aria-busy')).to.equal(false);
       expect(window.lana.log.calledOnceWithExactly(
         'Entitlement check: eligibility request failed',
@@ -532,7 +537,7 @@ describe('Entitlement check', () => {
     expect(document.activeElement).to.equal(input);
     expect(block.querySelector('[role="alert"]').textContent).to.include('Please try again.');
     expect(block.querySelector('button').disabled).to.equal(false);
-    expect(block.querySelector('.spectrum-ProgressCircle').hidden).to.equal(true);
+    expect(block.querySelector('sp-progress-circle').hidden).to.equal(true);
     expect(block.querySelector('form').hasAttribute('aria-busy')).to.equal(false);
     expect(block.querySelector('[role="status"]')).to.equal(null);
     expect(modal.getAttribute('aria-label')).to.equal('Check eligibility');
@@ -549,7 +554,7 @@ describe('Entitlement check', () => {
   it('shows only a loading indicator and prevents duplicate requests without a status message', async () => {
     let resolve;
     request.returns(new Promise((done) => { resolve = done; }));
-    const progress = block.querySelector('.spectrum-ProgressCircle');
+    const progress = block.querySelector('sp-progress-circle');
     expect(progress.hidden).to.equal(true);
     await submit();
     const form = block.querySelector('form');
@@ -563,7 +568,7 @@ describe('Entitlement check', () => {
     expect(block.querySelector('[role="status"]')).to.equal(null);
     form.requestSubmit();
     expect(request.callCount).to.equal(1);
-    expect(block.querySelectorAll('.spectrum-ProgressCircle').length).to.equal(1);
+    expect(block.querySelectorAll('sp-progress-circle').length).to.equal(1);
     resolve({ ok: true, json: async () => ({ status: 'NOT_ELIGIBLE' }) });
     await clock.tickAsync(0);
     expect(progress.hidden).to.equal(true);
@@ -584,13 +589,57 @@ describe('Entitlement check', () => {
     const button = block.querySelector('button');
     expect(button.textContent).to.equal(label);
     expect(button.getAttribute('aria-label')).to.equal(label);
-    expect(button.firstElementChild.hidden).to.equal(false);
+    expect(button.querySelector('sp-progress-circle').hidden).to.equal(false);
     resolve({ ok: false });
     await clock.tickAsync(0);
     expect(button.textContent).to.equal(label);
     expect(button.getAttribute('aria-label')).to.equal(label);
     expect(button.disabled).to.equal(false);
-    expect(button.firstElementChild.hidden).to.equal(true);
+    expect(button.querySelector('sp-progress-circle').hidden).to.equal(true);
+  });
+
+  it('does not delay eligibility while the shared indicator renders', async () => {
+    let ready;
+    const rendering = new Promise((resolve) => { ready = resolve; });
+    sinon.stub(customElements.get('sp-progress-circle').prototype, 'updateComplete')
+      .get(() => rendering);
+    close();
+    modal.remove();
+    await mount();
+    let respond;
+    request.returns(new Promise((resolve) => { respond = resolve; }));
+    await submit();
+    const progress = block.querySelector('sp-progress-circle');
+    expect(request.calledOnce).to.equal(true);
+    expect(block.querySelector('form').getAttribute('aria-busy')).to.equal('true');
+    expect(block.querySelector('button').disabled).to.equal(true);
+    expect(progress.hidden).to.equal(true);
+    ready(true);
+    await clock.tickAsync(0);
+    expect(progress.hidden).to.equal(false);
+    respond({ ok: false });
+    await clock.tickAsync(0);
+    expect(progress.hidden).to.equal(true);
+    expect(block.querySelector('button').disabled).to.equal(false);
+  });
+
+  it('logs shared indicator failure without preventing eligibility or exposing error details', async () => {
+    sinon.stub(customElements.get('sp-progress-circle').prototype, 'updateComplete')
+      .get(() => Promise.reject(new Error('student@school.example.org')));
+    close();
+    modal.remove();
+    await mount();
+    await clock.tickAsync(0);
+    expect(window.lana.log.args).to.deep.equal([[
+      'Entitlement check: progress indicator initialization failed',
+      { tags: 'entitlement-check', severity: 'error' },
+    ]]);
+    expect(block.querySelector('sp-progress-circle').hidden).to.equal(true);
+    expect(block.querySelector('button').disabled).to.equal(false);
+    await submit();
+    expect(request.calledOnce).to.equal(true);
+    expect(block.dataset.state).to.equal('rejected');
+    expect(window.lana.log.callCount).to.equal(1);
   });
 
   it('times out a pending request and allows retry', async () => {
@@ -602,7 +651,7 @@ describe('Entitlement check', () => {
     expect(request.firstCall.args[1].signal.aborted).to.equal(true);
     expect(block.querySelector('[role="alert"]').textContent).to.include('Please try again.');
     expect(block.querySelector('button').disabled).to.equal(false);
-    expect(block.querySelector('.spectrum-ProgressCircle').hidden).to.equal(true);
+    expect(block.querySelector('sp-progress-circle').hidden).to.equal(true);
     expect(window.lana.log.calledOnceWithExactly(
       'Entitlement check: eligibility request failed',
       { tags: 'entitlement-check', severity: 'error' },
@@ -654,7 +703,7 @@ describe('Entitlement check', () => {
     await clock.tickAsync(0);
     expect(request.firstCall.args[1].signal.aborted).to.equal(true);
     expect(block.querySelector('button').disabled).to.equal(false);
-    expect(block.querySelector('.spectrum-ProgressCircle').hidden).to.equal(true);
+    expect(block.querySelector('sp-progress-circle').hidden).to.equal(true);
     await submit();
     expect(block.dataset.state).to.equal('rejected');
   });
@@ -708,7 +757,7 @@ describe('Entitlement check', () => {
     resolve({ ok: true, json: async () => ({ status: 'ELIGIBLE' }) });
     await clock.tickAsync(0);
     expect(block.dataset.state).to.equal('form');
-    expect(block.querySelector('.spectrum-ProgressCircle').hidden).to.equal(true);
+    expect(block.querySelector('sp-progress-circle').hidden).to.equal(true);
     expect(clock.countTimers()).to.equal(0);
     expect(window.lana.log.called).to.equal(false);
   });

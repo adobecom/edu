@@ -154,23 +154,19 @@ export default async function init(block) {
   const submitLabel = document.createElement('span');
   submitLabel.className = 'entitlement-check-submit-label';
   submitLabel.textContent = text('submit-label');
-  const progress = document.createElement('span');
-  progress.className = 'spectrum-ProgressCircle spectrum-ProgressCircle--indeterminate';
+  const progressTheme = document.createElement('sp-theme');
+  progressTheme.className = 'entitlement-check-progress';
+  progressTheme.setAttribute('system', 'spectrum');
+  progressTheme.setAttribute('color', 'light');
+  progressTheme.setAttribute('scale', 'medium');
+  const progress = document.createElement('sp-progress-circle');
+  progress.setAttribute('indeterminate', '');
+  progress.setAttribute('size', 's');
+  progress.setAttribute('static-color', 'white');
   progress.hidden = true;
   progress.setAttribute('aria-hidden', 'true');
-  const track = progress.appendChild(document.createElement('span'));
-  track.className = 'spectrum-ProgressCircle-track';
-  const fills = progress.appendChild(document.createElement('span'));
-  fills.className = 'spectrum-ProgressCircle-fills';
-  [1, 2].forEach((number) => {
-    const mask = fills.appendChild(document.createElement('span'));
-    mask.className = `spectrum-ProgressCircle-fillMask${number}`;
-    const subMask = mask.appendChild(document.createElement('span'));
-    subMask.className = `spectrum-ProgressCircle-fillSubMask${number}`;
-    const fill = subMask.appendChild(document.createElement('span'));
-    fill.className = 'spectrum-ProgressCircle-fill';
-  });
-  submit.append(progress, submitLabel);
+  progressTheme.append(progress);
+  submit.append(progressTheme, submitLabel);
   fields.append(label, input, errorSlot, consentRow, submit);
   form.append(intro, fields);
   block.replaceChildren(form);
@@ -179,6 +175,7 @@ export default async function init(block) {
 
   let disposed = false;
   let busy = false;
+  let progressReady = false;
   let controller;
   let requestTimer;
 
@@ -262,7 +259,7 @@ export default async function init(block) {
     consent.disabled = true;
     submit.disabled = true;
     form.setAttribute('aria-busy', 'true');
-    progress.hidden = false;
+    progress.hidden = !progressReady;
     controller = new AbortController();
     requestTimer = window.setTimeout(() => controller.abort(), 15000);
     let eligibilityStatus;
@@ -317,4 +314,16 @@ export default async function init(block) {
       input.focus();
     }
   });
+
+  Promise.all([
+    import(`${getLibs()}/features/spectrum-web-components/dist/theme.js`),
+    import(`${getLibs()}/features/spectrum-web-components/dist/progress-circle.js`),
+  ]).then(async () => {
+    if (disposed || modal?.dataset.closing || !block.contains(form)) return;
+    customElements.upgrade(progressTheme);
+    await Promise.all([progressTheme.updateComplete, progress.updateComplete]);
+    if (disposed || modal?.dataset.closing || !block.contains(form)) return;
+    progressReady = true;
+    progress.hidden = !busy;
+  }).catch(() => logError('progress indicator initialization failed'));
 }
