@@ -46,16 +46,17 @@ describe('Entitlement check', () => {
     await mount();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     close();
     window.dispatchEvent(new Event('pagehide'));
     modal.remove();
+    await clock.tickAsync(0);
     clock.restore();
     sinon.restore();
     window.lana = originalLana;
   });
 
-  it('tracks only the first nonempty textbox input without including its contents', async () => {
+  it('does not track email input', async () => {
     const input = block.querySelector('input');
     expect(analyticsEvents).to.deep.equal([]);
     ['', ' ', 's', 'student@school.example.org', '', 'another@college.example.org'].forEach((value) => {
@@ -63,7 +64,7 @@ describe('Entitlement check', () => {
       input.dispatchEvent(new Event('input'));
     });
     await clock.tickAsync(0);
-    expect(analyticsEvents).to.deep.equal(['entitlement-check:email-input']);
+    expect(analyticsEvents).to.deep.equal([]);
   });
 
   it('tracks checkbox checks but not unchecks', async () => {
@@ -73,12 +74,12 @@ describe('Entitlement check', () => {
     consent.click();
     await clock.tickAsync(0);
     expect(analyticsEvents).to.deep.equal([
-      'entitlement-check:checkbox-checked',
-      'entitlement-check:checkbox-checked',
+      'ar_check_click',
+      'ar_check_click',
     ]);
   });
 
-  it('preserves event order while analytics loads without delaying eligibility', async () => {
+  it('preserves custom-event order without delaying eligibility', async () => {
     const form = block.querySelector('form');
     form.requestSubmit();
     const input = block.querySelector('input');
@@ -89,50 +90,43 @@ describe('Entitlement check', () => {
     expect(request.calledOnce).to.equal(true);
     await clock.tickAsync(0);
     expect(analyticsEvents).to.deep.equal([
-      'entitlement-check:validation-error:required',
-      'entitlement-check:email-input',
-      'entitlement-check:checkbox-checked',
-      'entitlement-check:form-submit',
-      'entitlement-check:ineligible',
+      'ar_check_click',
+      'ar_not_eligible',
     ]);
   });
 
-  it('tracks only the displayed validation error without a submission or API outcome', async () => {
+  it('tracks only the personal-email warning, not required or invalid-email validation', async () => {
     await submit('', false);
     await submit('not-an-email', false);
+    expect(analyticsEvents).to.deep.equal([]);
     await submit('student@gmail.com', false);
     expect(analyticsEvents).to.deep.equal([
-      'entitlement-check:validation-error:required',
-      'entitlement-check:validation-error:invalid-email',
-      'entitlement-check:validation-error:personal-email',
+      'ar_email_personal_warning',
     ]);
     expect(request.called).to.equal(false);
   });
 
-  it('tracks a single valid submission and the ineligible return', async () => {
+  it('tracks the ineligible outcome but not request start or duplicate submissions', async () => {
     let resolve;
     request.returns(new Promise((done) => { resolve = done; }));
     await submit();
     await submit();
     expect(request.callCount).to.equal(1);
-    expect(analyticsEvents).to.deep.equal(['entitlement-check:form-submit']);
+    expect(analyticsEvents).to.deep.equal([]);
     resolve({ ok: true, json: async () => ({ status: 'NOT_ELIGIBLE' }) });
     await clock.tickAsync(0);
     expect(analyticsEvents).to.deep.equal([
-      'entitlement-check:form-submit',
-      'entitlement-check:ineligible',
+      'ar_not_eligible',
     ]);
   });
 
-  it('tracks a retry as another submission without treating a service failure as ineligibility', async () => {
+  it('tracks only the successful retry outcome after a service failure', async () => {
     request.onFirstCall().resolves({ ok: false });
     await submit();
-    expect(analyticsEvents).to.deep.equal(['entitlement-check:form-submit']);
+    expect(analyticsEvents).to.deep.equal([]);
     await submit();
     expect(analyticsEvents).to.deep.equal([
-      'entitlement-check:form-submit',
-      'entitlement-check:form-submit',
-      'entitlement-check:ineligible',
+      'ar_not_eligible',
     ]);
   });
 
@@ -141,7 +135,7 @@ describe('Entitlement check', () => {
     await submit();
     expect(request.calledOnce).to.equal(true);
     expect(block.dataset.state).to.equal('rejected');
-    expect(window.lana.log.callCount).to.equal(2);
+    expect(window.lana.log.callCount).to.equal(1);
     expect(window.lana.log.args.every(([message]) => message === 'Entitlement check: analytics event failed')).to.equal(true);
     expect(JSON.stringify(window.lana.log.args)).not.to.include('student@school.example.org');
   });
@@ -189,8 +183,7 @@ describe('Entitlement check', () => {
     expect(request.calledOnce).to.equal(true);
     expect(block.dataset.state).to.equal('rejected');
     expect(analyticsEvents).to.deep.equal([
-      'entitlement-check:form-submit',
-      'entitlement-check:ineligible',
+      'ar_not_eligible',
     ]);
   });
 
@@ -356,6 +349,74 @@ describe('Entitlement check', () => {
     expect(link.href).to.equal('https://www.adobe.com/creativecloud/start-with-free-creativecloud.html');
     expect(clock.countTimers()).to.equal(0);
     expect(block.querySelector('input')).to.equal(null);
+  });
+
+  [true, false].forEach((inModal) => {
+    it(`tracks the rejected CTA without preventing default or bubbling ${inModal ? 'in a modal' : 'inline'}`, async () => {
+      close();
+      modal.remove();
+      await clock.tickAsync(0);
+      await mount(true, fixture.replace('>Get my free trial</a>', ' daa-ll="authored-trial">Explore plans</a>'), inModal);
+      analyticsEvents.length = 0;
+      await submit();
+      const link = block.querySelector('.entitlement-check-trial');
+      const click = sinon.spy((event) => {
+        expect(event.defaultPrevented).to.equal(false);
+        event.preventDefault();
+      });
+      modal.addEventListener('click', click, { once: true });
+      link.click();
+      await clock.tickAsync(0);
+      expect(click.calledOnce).to.equal(true);
+      expect(link.textContent).to.equal('Explore plans');
+      expect(link.getAttribute('daa-ll')).to.equal('authored-trial');
+      expect(link.href).to.equal('https://www.adobe.com/creativecloud/start-with-free-creativecloud.html');
+      expect(analyticsEvents).to.deep.equal(['ar_not_eligible', 'ar_399_click']);
+    });
+  });
+
+  it('tracks a first-interaction close once despite the closing guard and immediate removal, then tracks reopening', async () => {
+    close('another-modal');
+    await clock.tickAsync(0);
+    expect(analyticsEvents).to.deep.equal([]);
+    modal.dataset.closing = 'true';
+    const consent = block.querySelector('[type="checkbox"]');
+    consent.checked = true;
+    consent.dispatchEvent(new Event('change'));
+    close();
+    modal.remove();
+    close();
+    await clock.tickAsync(0);
+    expect(analyticsEvents).to.deep.equal(['ar_modal_close']);
+    await mount();
+    close();
+    await clock.tickAsync(0);
+    expect(analyticsEvents).to.deep.equal(['ar_modal_close', 'ar_modal_close']);
+  });
+
+  it('tracks closing after rejection without adding a close event on page exit', async () => {
+    await submit();
+    modal.dataset.closing = 'true';
+    close();
+    close();
+    window.dispatchEvent(new Event('pagehide'));
+    await clock.tickAsync(0);
+    expect(analyticsEvents).to.deep.equal(['ar_not_eligible', 'ar_modal_close']);
+  });
+
+  [true, false].forEach((inModal) => {
+    it(`does not track page exit or a subsequent close ${inModal ? 'in a modal' : 'inline'}`, async () => {
+      close();
+      modal.remove();
+      await clock.tickAsync(0);
+      await mount(true, fixture, inModal);
+      analyticsEvents.length = 0;
+      if (!inModal) close();
+      window.dispatchEvent(new Event('pagehide'));
+      close();
+      await clock.tickAsync(0);
+      expect(analyticsEvents).to.deep.equal([]);
+    });
   });
 
   [
@@ -536,7 +597,7 @@ describe('Entitlement check', () => {
     const consent = block.querySelector('[type="checkbox"]');
     consent.dispatchEvent(new Event('change'));
     await clock.tickAsync(0);
-    expect(analyticsEvents).to.deep.equal(['entitlement-check:form-submit']);
+    expect(analyticsEvents).to.deep.equal(['ar_modal_close']);
   });
 
   it('cleans up on page exit and creates a fresh form on reopen', async () => {

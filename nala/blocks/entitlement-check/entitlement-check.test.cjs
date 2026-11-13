@@ -22,6 +22,31 @@ async function freeze(page) {
   await page.clock.pauseAt(new Date(time.getTime() + 1000));
 }
 
+async function captureAnalytics(page) {
+  await page.addInitScript(() => {
+    window.entitlementAnalytics = [];
+    window.entitlementClicks = [];
+    // eslint-disable-next-line no-underscore-dangle
+    window._satellite = { track: (type, payload) => window.entitlementAnalytics.push({ type, payload }) };
+    document.addEventListener('click', (event) => {
+      const control = event.target.closest('[daa-ll]');
+      if (control) {
+        window.entitlementClicks.push({
+          label: control.getAttribute('daa-ll'),
+          defaultPrevented: event.defaultPrevented,
+        });
+      }
+    });
+  });
+}
+
+async function getAnalytics(page) {
+  return page.evaluate(() => window.entitlementAnalytics.filter(({ payload }) => {
+    const name = payload?.xdm?.web?.webInteraction?.name;
+    return name?.startsWith('ar_') || name?.startsWith('entitlement-check:');
+  }));
+}
+
 async function captureNavigation(page, onNavigation) {
   const prefix = 'entitlement-navigation:';
   page.on('console', (message) => {
@@ -40,8 +65,12 @@ async function captureNavigation(page, onNavigation) {
         result: Boolean(document.querySelector('.entitlement-check-result')),
         cta: Boolean(document.querySelector('.entitlement-check-continue')),
         events: (window.entitlementAnalytics || []).filter(
-          ({ payload }) => payload?.xdm?.web?.webInteraction?.name?.startsWith('entitlement-check:'),
+          ({ payload }) => {
+            const name = payload?.xdm?.web?.webInteraction?.name;
+            return name?.startsWith('ar_') || name?.startsWith('entitlement-check:');
+          },
         ),
+        clicks: window.entitlementClicks || [],
       };
       // eslint-disable-next-line no-console
       console.info(`${marker}${JSON.stringify(snapshot)}`);
@@ -267,11 +296,7 @@ test.afterEach(async ({ page }) => {
   test(`${mode}: analytics tracks the eligibility funnel and errors without form contents`, async ({ page }) => {
     let eligibleEvents;
     await captureNavigation(page, ({ events }) => { eligibleEvents = events; });
-    await page.addInitScript(() => {
-      window.entitlementAnalytics = [];
-      // eslint-disable-next-line no-underscore-dangle
-      window._satellite = { track: (type, payload) => window.entitlementAnalytics.push({ type, payload }) };
-    });
+    await captureAnalytics(page);
     let status = 'NOT_ELIGIBLE';
     await page.route(service, (route) => route.fulfill({ json: { status }, headers: { 'access-control-allow-origin': '*' } }));
     const loadForm = async () => {
@@ -283,9 +308,7 @@ test.afterEach(async ({ page }) => {
         await expect(page.locator('.entitlement-check')).toHaveAttribute('data-state', 'form');
       }
     };
-    const getEvents = () => page.evaluate(() => window.entitlementAnalytics.filter(
-      ({ payload }) => payload?.xdm?.web?.webInteraction?.name?.startsWith('entitlement-check:'),
-    ));
+    const getEvents = () => getAnalytics(page);
     const getNames = async () => (await getEvents()).map(({ payload }) => payload.xdm.web.webInteraction.name);
     await loadForm();
     const input = page.getByRole('textbox', { name: 'College email address' });
@@ -293,9 +316,11 @@ test.afterEach(async ({ page }) => {
     const submit = page.getByRole('button', { name: 'Check eligibility' });
     await submit.click();
     await expect(page.getByRole('alert')).toHaveText('This field is required.');
+    expect(await getNames()).toEqual([]);
     await input.fill('not-an-email');
     await submit.click();
     await expect(page.getByRole('alert')).toHaveText('Enter a valid email address.');
+    expect(await getNames()).toEqual([]);
     await input.fill('student@gmail.com');
     await submit.click();
     await expect(page.getByRole('alert')).toHaveText('Make sure to use your school email, not your personal email.');
@@ -303,12 +328,8 @@ test.afterEach(async ({ page }) => {
     await submit.click();
     await expect(page.locator('.entitlement-check')).toHaveAttribute('data-state', 'rejected');
     await expect.poll(getNames, { timeout: 15000 }).toEqual([
-      'entitlement-check:validation-error:required',
-      'entitlement-check:email-input',
-      'entitlement-check:validation-error:invalid-email',
-      'entitlement-check:validation-error:personal-email',
-      'entitlement-check:form-submit',
-      'entitlement-check:ineligible',
+      'ar_email_personal_warning',
+      'ar_not_eligible',
     ]);
     const rejectedEvents = await getEvents();
     status = 'ELIGIBLE';
@@ -316,16 +337,13 @@ test.afterEach(async ({ page }) => {
     await input.fill('student@school.example.org');
     await consent.check();
     await expect.poll(getNames, { timeout: 15000 }).toEqual([
-      'entitlement-check:email-input',
-      'entitlement-check:checkbox-checked',
+      'ar_check_click',
     ]);
     await submit.click();
     await expect(page).toHaveURL(stageBrowserDestination);
     await expect.poll(() => eligibleEvents?.map(({ payload }) => payload.xdm.web.webInteraction.name)).toEqual([
-      'entitlement-check:email-input',
-      'entitlement-check:checkbox-checked',
-      'entitlement-check:form-submit',
-      'entitlement-check:eligible',
+      'ar_check_click',
+      'ar_eligible',
     ]);
     const events = [...rejectedEvents, ...eligibleEvents];
     events.forEach(({ type, payload }) => {
@@ -337,6 +355,89 @@ test.afterEach(async ({ page }) => {
     const serialized = JSON.stringify(events);
     ['student@', 'school.example.org', 'gmail.com', 'not-an-email', 'Enter a valid email address.'].forEach((value) => {
       expect(serialized).not.toContain(value);
+    });
+  });
+
+  ['click', 'Enter'].forEach((activation) => {
+    test(`${mode}: rejected CTA tracks ${activation} without suppressing navigation or Milo click labels`, async ({ page }) => {
+      await captureAnalytics(page);
+      let beforeNavigation;
+      await captureNavigation(page, (state) => { beforeNavigation = state; });
+      await page.route('**/test/blocks/entitlement-check/fragment.plain.html', async (route) => {
+        const response = await route.fetch();
+        const body = (await response.text()).replace('>Get my free trial</a>', ' daa-ll="authored-trial">Explore plans</a>');
+        await route.fulfill({ response, body });
+      });
+      const destination = 'https://www.adobe.com/creativecloud/start-with-free-creativecloud.html';
+      await page.route(destination, (route) => route.fulfill({
+        contentType: 'text/html',
+        body: '<!doctype html><title>Mock trial destination</title>',
+      }));
+      await page.route(service, (route) => route.fulfill({ json: { status: 'NOT_ELIGIBLE' }, headers: { 'access-control-allow-origin': '*' } }));
+      if (mode === 'modal') {
+        await open(page);
+      } else {
+        await page.goto(`${fixture}?inline`);
+        await expect(page.locator('html')).toHaveAttribute('data-ready', 'true');
+      }
+      await page.getByRole('textbox', { name: 'College email address' }).fill('student@school.example.org');
+      await page.getByRole('button', { name: 'Check eligibility' }).click();
+      const cta = page.getByRole('link', { name: 'Explore plans' });
+      await expect(cta).toHaveAttribute('daa-ll', 'authored-trial');
+      if (activation === 'click') await cta.click();
+      else await cta.press('Enter');
+      await expect(page).toHaveURL(destination);
+      await expect.poll(() => beforeNavigation?.events.map(({ payload }) => payload.xdm.web.webInteraction.name))
+        .toEqual(['ar_not_eligible', 'ar_399_click']);
+      expect(beforeNavigation.clicks).toContainEqual({ label: 'authored-trial', defaultPrevented: false });
+    });
+  });
+});
+
+['form', 'rejected'].forEach((state) => {
+  ['backdrop', 'X', 'Escape', 'programmatic'].forEach((method) => {
+    test(`${state}: ${method} closes the owning modal once and preserves Milo close labels`, async ({ page }) => {
+      await captureAnalytics(page);
+      await page.route(service, (route) => route.fulfill({ json: { status: 'NOT_ELIGIBLE' }, headers: { 'access-control-allow-origin': '*' } }));
+      await open(page);
+      const getNames = async () => (await getAnalytics(page)).map(({ payload }) => payload.xdm.web.webInteraction.name);
+      await page.evaluate(() => window.dispatchEvent(new CustomEvent('milo:modal:closed', { detail: { id: 'unrelated-modal' } })));
+      expect(await getNames()).toEqual([]);
+      if (state === 'rejected') {
+        await page.getByRole('textbox', { name: 'College email address' }).fill('student@school.example.org');
+        await page.getByRole('button', { name: 'Check eligibility' }).click();
+        await expect(page.locator('.entitlement-check')).toHaveAttribute('data-state', 'rejected');
+      }
+      await expect(page.locator('.dialog-close')).toHaveAttribute('daa-ll', /:modalClose:buttonClose$/);
+      await expect(page.locator('.modal-curtain')).toHaveAttribute('daa-ll', /:modalClose:curtainClose$/);
+      const modalId = await page.getByRole('dialog').getAttribute('id');
+      if (method === 'backdrop') await page.locator('.modal-curtain').click({ position: { x: 1, y: 1 } });
+      else if (method === 'X') await page.getByRole('button', { name: 'Close', exact: true }).click();
+      else if (method === 'Escape') await page.keyboard.press('Escape');
+      else {
+        await page.evaluate(async () => {
+          const libs = '/libs';
+          const { closeModal } = await import(`${libs}/blocks/modal/modal.js`);
+          await closeModal(document.querySelector('.dialog-modal'));
+        });
+      }
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+      const expected = state === 'rejected' ? ['ar_not_eligible', 'ar_modal_close'] : ['ar_modal_close'];
+      await expect.poll(getNames).toEqual(expected);
+      await page.evaluate((id) => window.dispatchEvent(new CustomEvent('milo:modal:closed', { detail: { id } })), modalId);
+      expect(await getNames()).toEqual(expected);
+      if (method !== 'programmatic') {
+        const labels = await page.evaluate(() => window.entitlementClicks.map(({ label }) => label));
+        const suffix = { backdrop: 'curtainClose', X: 'buttonClose', Escape: 'escapeClose' }[method];
+        expect(labels.at(-1)).toMatch(new RegExp(`:modalClose:${suffix}$`));
+      }
+      if (state === 'form' && method === 'X') {
+        await page.getByRole('link', { name: 'Check eligibility', exact: true }).click();
+        await expect(page.getByRole('textbox', { name: 'College email address' })).toBeVisible();
+        await page.keyboard.press('Escape');
+        await expect(page.getByRole('dialog')).toHaveCount(0);
+        await expect.poll(getNames).toEqual(['ar_modal_close', 'ar_modal_close']);
+      }
     });
   });
 });
@@ -370,6 +471,7 @@ test('long validation copy remains reachable on a narrow, short viewport', async
     { status: 'ELIGIBLE', env: 'prod' },
   ].forEach(({ status, env }) => {
     test(`${mode}: ${status} immediately redirects in ${env} without success content or a timer`, async ({ page }) => {
+      await captureAnalytics(page);
       let endpoint;
       await page.route(service, (route) => {
         endpoint = route.request().url();
@@ -393,6 +495,7 @@ test('long validation copy remains reachable on a narrow, short viewport', async
       await expect(page).toHaveURL(destination);
       expect(endpoint).toBe(`https://edu-org${env === 'prod' ? '' : '-stage'}.adobe.io/v1/entitlements`);
       await expect.poll(() => beforeNavigation).toMatchObject({ destination, state: 'form', result: false, cta: false });
+      expect(beforeNavigation.events.map(({ payload }) => payload.xdm.web.webInteraction.name)).toEqual(['ar_eligible']);
     });
   });
 });

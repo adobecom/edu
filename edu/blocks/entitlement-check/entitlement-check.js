@@ -59,6 +59,12 @@ export default async function init(block) {
   const config = readConfig(block);
   const modal = block.closest('.dialog-modal');
   const { getConfig } = await import(`${getLibs()}/utils/utils.js`);
+  let sendAnalytics;
+  try {
+    ({ sendAnalytics } = await import(`${getLibs()}/martech/helpers.js`));
+  } catch (e) {
+    logError('analytics initialization failed');
+  }
   if (modal?.dataset.closing) return;
   const isProd = getConfig().env?.name === 'prod';
   const host = isProd
@@ -153,8 +159,6 @@ export default async function init(block) {
   let busy = false;
   let controller;
   let requestTimer;
-  let inputTracked = false;
-  let sendAnalytics;
   let analyticsLoading = false;
   const analyticsQueue = [];
 
@@ -163,13 +167,13 @@ export default async function init(block) {
   }
 
   function trackEvent(name) {
-    if (disposed || !block.isConnected || modal?.dataset.closing) return;
-    const eventName = `entitlement-check:${name}`;
+    if (disposed || !block.isConnected
+      || (modal?.dataset.closing && name !== 'ar_modal_close')) return;
     if (sendAnalytics) {
-      dispatchAnalytics(eventName);
+      dispatchAnalytics(name);
       return;
     }
-    analyticsQueue.push(eventName);
+    analyticsQueue.push(name);
     if (analyticsLoading) return;
     analyticsLoading = true;
     import(`${getLibs()}/martech/helpers.js`)
@@ -186,6 +190,7 @@ export default async function init(block) {
 
   function dispose(event) {
     if (event?.type === 'milo:modal:closed' && (!modal || event.detail?.id !== modal.id)) return;
+    if (event?.type === 'milo:modal:closed') trackEvent('ar_modal_close');
     controller?.abort();
     window.clearTimeout(requestTimer);
     // A cached page can be restored; leave its form usable for another attempt.
@@ -215,15 +220,9 @@ export default async function init(block) {
     }
   }
 
-  input.addEventListener('input', () => {
-    clearError();
-    if (!inputTracked && input.value.trim()) {
-      inputTracked = true;
-      trackEvent('email-input');
-    }
-  });
+  input.addEventListener('input', clearError);
   consent.addEventListener('change', () => {
-    if (consent.checked) trackEvent('checkbox-checked');
+    if (consent.checked) trackEvent('ar_check_click');
   });
 
   function showRejection() {
@@ -233,6 +232,7 @@ export default async function init(block) {
     title.tabIndex = -1;
     const link = config['rejected-cta'].querySelector('a').cloneNode(true);
     link.className = 'con-button blue entitlement-check-trial';
+    link.addEventListener('click', () => trackEvent('ar_399_click'));
     result.append(title, content(config, 'rejected-description', 'entitlement-check-description'), link);
     block.replaceChildren(result);
     block.dataset.state = 'rejected';
@@ -247,14 +247,13 @@ export default async function init(block) {
     if (!input.validity.valid) {
       const errorType = input.validity.valueMissing ? 'required' : 'invalid-email';
       showError(text(`${errorType}-error`), input);
-      trackEvent(`validation-error:${errorType}`);
       return;
     }
     const email = input.value;
     const domain = email.slice(email.lastIndexOf('@') + 1).toLowerCase();
     if (PERSONAL_EMAIL_DOMAINS.has(domain)) {
       showError(personalEmailError, input);
-      trackEvent('validation-error:personal-email');
+      trackEvent('ar_email_personal_warning');
       return;
     }
     clearError();
@@ -266,7 +265,6 @@ export default async function init(block) {
     progress.hidden = false;
     controller = new AbortController();
     requestTimer = window.setTimeout(() => controller.abort(), 15000);
-    trackEvent('form-submit');
     let eligibilityStatus;
     try {
       const response = await fetch(`${host}/v1/entitlements`, {
@@ -299,7 +297,7 @@ export default async function init(block) {
     }
     if (disposed || !block.isConnected || modal?.dataset.closing) return;
     const eligible = ['HAS_ACCESS', 'ELIGIBLE'].includes(eligibilityStatus);
-    trackEvent(eligible ? 'eligible' : 'ineligible');
+    trackEvent(eligible ? 'ar_eligible' : 'ar_not_eligible');
     const modalLabel = modal?.getAttribute('aria-label') ?? null;
     try {
       if (eligible) {
