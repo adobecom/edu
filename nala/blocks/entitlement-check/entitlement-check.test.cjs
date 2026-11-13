@@ -292,6 +292,30 @@ test.afterEach(async ({ page }) => {
   });
 });
 
+['delayed', 'unavailable'].forEach((analyticsState) => {
+  test(`standalone form renders and submits when the analytics helper is ${analyticsState}`, async ({ page }) => {
+    await captureAnalytics(page);
+    const pendingRoutes = [];
+    await page.route('**/libs/martech/helpers.js', (route) => {
+      if (analyticsState === 'unavailable') return route.abort();
+      pendingRoutes.push(route);
+      return undefined;
+    });
+    await page.route(service, (route) => route.fulfill({ json: { status: 'NOT_ELIGIBLE' }, headers: { 'access-control-allow-origin': '*' } }));
+    try {
+      await page.goto(`${fixture}?inline`, { waitUntil: 'domcontentloaded' });
+      await expect(page.getByRole('textbox', { name: 'College email address' })).toBeVisible();
+      await page.getByRole('textbox', { name: 'College email address' }).fill('student@school.example.org');
+      await page.getByRole('button', { name: 'Check eligibility' }).click();
+      await expect(page.locator('.entitlement-check')).toHaveAttribute('data-state', 'rejected');
+      await expect.poll(async () => (await getAnalytics(page)).map(({ payload }) => payload.xdm.web.webInteraction.name))
+        .toEqual(['ar_not_eligible']);
+    } finally {
+      await Promise.all(pendingRoutes.map((route) => route.abort()));
+    }
+  });
+});
+
 ['modal', 'inline'].forEach((mode) => {
   test(`${mode}: analytics tracks the eligibility funnel and errors without form contents`, async ({ page }) => {
     let eligibleEvents;
@@ -348,6 +372,8 @@ test.afterEach(async ({ page }) => {
     const events = [...rejectedEvents, ...eligibleEvents];
     events.forEach(({ type, payload }) => {
       expect(type).toBe('event');
+      expect(payload.documentUnloading).toBe(true);
+      expect(payload.xdm.eventType).toBe('web.webinteraction.linkClicks');
       const { _adobe_corpnew: adobeData } = payload.data;
       expect(payload.xdm.web.webInteraction.name)
         .toBe(adobeData.digitalData.primaryEvent.eventInfo.eventName);

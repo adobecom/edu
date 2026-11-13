@@ -23,6 +23,34 @@ function logError(message) {
   window.lana?.log(`Entitlement check: ${message}`, { tags: 'entitlement-check', severity: 'error' });
 }
 
+function dispatchAnalytics(name) {
+  const { _satellite: satellite } = window;
+  if (!satellite?.track) {
+    window.addEventListener('alloy_sendEvent', () => dispatchAnalytics(name), { once: true });
+    return;
+  }
+  try {
+    // Match Milo's payload without putting its optional helper on the form's critical path.
+    const digitalData = { primaryEvent: { eventInfo: { eventName: name } } };
+    satellite.track('event', {
+      documentUnloading: true,
+      xdm: {
+        eventType: 'web.webinteraction.linkClicks',
+        web: {
+          webInteraction: {
+            linkClicks: { value: 1 },
+            type: 'other',
+            name,
+          },
+        },
+      },
+      data: { _adobe_corpnew: { digitalData } },
+    });
+  } catch (e) {
+    logError('analytics event failed');
+  }
+}
+
 function readConfig(block) {
   const config = {};
   [...block.children].forEach((row) => {
@@ -59,12 +87,6 @@ export default async function init(block) {
   const config = readConfig(block);
   const modal = block.closest('.dialog-modal');
   const { getConfig } = await import(`${getLibs()}/utils/utils.js`);
-  let sendAnalytics;
-  try {
-    ({ sendAnalytics } = await import(`${getLibs()}/martech/helpers.js`));
-  } catch (e) {
-    logError('analytics initialization failed');
-  }
   if (modal?.dataset.closing) return;
   const isProd = getConfig().env?.name === 'prod';
   const host = isProd
@@ -159,33 +181,11 @@ export default async function init(block) {
   let busy = false;
   let controller;
   let requestTimer;
-  let analyticsLoading = false;
-  const analyticsQueue = [];
-
-  function dispatchAnalytics(name) {
-    sendAnalytics(name).catch(() => logError('analytics event failed'));
-  }
 
   function trackEvent(name) {
     if (disposed || !block.isConnected
       || (modal?.dataset.closing && name !== 'ar_modal_close')) return;
-    if (sendAnalytics) {
-      dispatchAnalytics(name);
-      return;
-    }
-    analyticsQueue.push(name);
-    if (analyticsLoading) return;
-    analyticsLoading = true;
-    import(`${getLibs()}/martech/helpers.js`)
-      .then((module) => {
-        sendAnalytics = module.sendAnalytics;
-        analyticsQueue.splice(0).forEach(dispatchAnalytics);
-      })
-      .catch(() => {
-        analyticsQueue.length = 0;
-        logError('analytics event failed');
-      })
-      .finally(() => { analyticsLoading = false; });
+    dispatchAnalytics(name);
   }
 
   function dispose(event) {

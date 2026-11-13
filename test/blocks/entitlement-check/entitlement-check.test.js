@@ -4,7 +4,7 @@ import init from '../../../edu/blocks/entitlement-check/entitlement-check.js';
 
 const mockLibs = '/test/blocks/entitlement-check/mocks';
 const { setConfig } = await import(`${mockLibs}/utils/utils.js`);
-const { analyticsEvents } = await import(`${mockLibs}/martech/helpers.js`);
+const analyticsEvents = [];
 const fixture = await fetch('/test/blocks/entitlement-check/fragment.plain.html').then((response) => response.text());
 const personalEmailError = 'Make sure to use your school email, not your personal email.';
 
@@ -14,6 +14,8 @@ describe('Entitlement check', () => {
   let clock;
   let request;
   let originalLana;
+  let originalSatellite;
+  let satellite;
 
   async function mount(attached = true, markup = fixture, inModal = true) {
     modal = document.createElement('div');
@@ -42,6 +44,14 @@ describe('Entitlement check', () => {
     request = sinon.stub(window, 'fetch').resolves({ ok: true, json: async () => ({ status: 'NOT_ELIGIBLE' }) });
     originalLana = window.lana;
     window.lana = { log: sinon.spy() };
+    ({ _satellite: originalSatellite } = window);
+    satellite = {
+      track(type, payload) {
+        analyticsEvents.push(payload.xdm.web.webInteraction.name);
+      },
+    };
+    // eslint-disable-next-line no-underscore-dangle
+    window._satellite = satellite;
     setConfig({ env: { name: 'stage' } });
     await mount();
   });
@@ -50,10 +60,15 @@ describe('Entitlement check', () => {
     close();
     window.dispatchEvent(new Event('pagehide'));
     modal.remove();
+    // eslint-disable-next-line no-underscore-dangle
+    window._satellite = satellite;
+    window.dispatchEvent(new Event('alloy_sendEvent'));
     await clock.tickAsync(0);
     clock.restore();
     sinon.restore();
     window.lana = originalLana;
+    // eslint-disable-next-line no-underscore-dangle
+    window._satellite = originalSatellite;
   });
 
   it('does not track email input', async () => {
@@ -67,12 +82,11 @@ describe('Entitlement check', () => {
     expect(analyticsEvents).to.deep.equal([]);
   });
 
-  it('tracks checkbox checks but not unchecks', async () => {
+  it('tracks checkbox checks synchronously but not unchecks', () => {
     const consent = block.querySelector('[type="checkbox"]');
     consent.click();
     consent.click();
     consent.click();
-    await clock.tickAsync(0);
     expect(analyticsEvents).to.deep.equal([
       'ar_check_click',
       'ar_check_click',
@@ -93,6 +107,24 @@ describe('Entitlement check', () => {
       'ar_check_click',
       'ar_not_eligible',
     ]);
+  });
+
+  it('keeps eligibility usable without the SDK and flushes queued events once after modal removal', async () => {
+    // eslint-disable-next-line no-underscore-dangle
+    window._satellite = undefined;
+    block.querySelector('[type="checkbox"]').click();
+    await submit();
+    expect(block.dataset.state).to.equal('rejected');
+    close();
+    modal.remove();
+    expect(analyticsEvents).to.deep.equal([]);
+    // eslint-disable-next-line no-underscore-dangle
+    window._satellite = satellite;
+    window.dispatchEvent(new Event('alloy_sendEvent'));
+    expect(analyticsEvents).to.deep.equal(['ar_check_click', 'ar_not_eligible', 'ar_modal_close']);
+    window.dispatchEvent(new Event('alloy_sendEvent'));
+    expect(analyticsEvents).to.deep.equal(['ar_check_click', 'ar_not_eligible', 'ar_modal_close']);
+    expect(window.lana.log.called).to.equal(false);
   });
 
   it('tracks only the personal-email warning, not required or invalid-email validation', async () => {
