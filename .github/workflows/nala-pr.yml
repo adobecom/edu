@@ -53,9 +53,9 @@ jobs:
         run: |
           missing=0
           for dir in $(npx playwright install --dry-run | awk '/Install location:/ {print $3}'); do
-            [[ -d "$dir" ]] || { echo "::error::Missing browser $dir"; missing=1; }
+            [ -d "$dir" ] || { echo "::error::Missing browser $dir"; missing=1; }
           done
-          if [[ $missing -ne 0 ]]; then
+          if [ "$missing" -ne 0 ]; then
             echo "::error::Container image does not match @playwright/test $(npx playwright --version). Bump the mcr.microsoft.com/playwright tag in nala-pr.yml."
             exit 1
           fi
