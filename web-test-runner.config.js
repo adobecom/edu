@@ -23,7 +23,7 @@ export default {
       '**/deps/**',
     ],
   },
-  plugins: [importMapsPlugin({})],
+  plugins: [importMapsPlugin({ inject: { importMap: { scopes: { '/edu/blocks/entitlement-check/': { '/edu/scripts/scripts.js': '/test/blocks/entitlement-check/mocks/scripts.js' } } } } })],
   reporters: [
     defaultReporter({ reportTestResults: true, reportTestProgress: true }),
     customReporter(),
