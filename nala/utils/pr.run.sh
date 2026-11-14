@@ -78,5 +78,5 @@ if [ $EXIT_STATUS -ne 0 ]; then
   echo "Some tests failed. Exiting with error."
   exit $EXIT_STATUS
 else
-  echo "All tests passed successfully."
+  echo "Nala completed successfully (retry recovery is allowed; see the report for flaky tests)."
 fi
