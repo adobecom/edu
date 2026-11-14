@@ -29,6 +29,25 @@ npm run test:watch
 ```
 This will give you several options to debug tests. Note: coverage may not be accurate.
 
+### Nala end-to-end tests
+
+Run the demo against stage, including repeated runs in all three desktop browsers:
+
+```sh
+LOCAL_TEST_LIVE_URL=https://stage--edu--adobecom.aem.live npx playwright test nala/blocks/demo/demo.test.cjs --project=edu-live-chromium --project=edu-live-firefox --project=edu-live-webkit --repeat-each=5
+```
+
+The demo fixture uses the configured base URL and checks the main demo heading.
+CI retains one retry and succeeds when a test recovers. The custom summary counts
+each final test once and reports flaky tests separately from expected passes,
+unexpected failures, and skips; the built-in list/GitHub reporters remain enabled.
+Reporter regression tests are tagged `@nopr` to keep synthetic summaries out of
+the live PR suite. Run them explicitly:
+
+```sh
+npx playwright test nala/utils/base-reporter.test.cjs --project=edu-live-chromium --reporter=list
+```
+
 ## Security
 1. Create a Service Now ID for your project via [Service Registry Portal](https://adobe.service-now.com/service_registry_portal.do#/search)
 2. Update the `.kodiak/config.yaml` file to make sure valid team members are assigned security vulnerability Jira tickets.
