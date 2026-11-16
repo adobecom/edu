@@ -305,6 +305,16 @@ test.beforeEach(async ({ page }) => {
     // eslint-disable-next-line no-console
     console.error('Entitlement fixture page error:', error);
   });
+  page.on('console', (message) => {
+    if (message.type() !== 'error') return;
+    // eslint-disable-next-line no-console
+    console.error('Entitlement fixture console error:', message.text());
+  });
+  page.on('requestfailed', (request) => {
+    if (request.failure()?.errorText === 'NS_BINDING_ABORTED') return;
+    // eslint-disable-next-line no-console
+    console.error('Entitlement fixture request failed:', request.url(), request.failure()?.errorText);
+  });
   // Test fixtures are intentionally excluded from AEM deployments.
   await page.route('**/test/blocks/entitlement-check/**', (route) => {
     const file = new URL(route.request().url()).pathname.split('/entitlement-check/')[1];
