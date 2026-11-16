@@ -48,6 +48,14 @@ the live PR suite. Run them explicitly:
 npx playwright test nala/utils/base-reporter.test.cjs --project=edu-live-chromium --reporter=list
 ```
 
+The entitlement-check suite serves its integration fixtures and block assets from
+the checkout using Playwright routes, while loading real Milo dependencies.
+It does not require a local server or publishing the excluded `test/` directory:
+
+```sh
+LOCAL_TEST_LIVE_URL=https://stage--edu--adobecom.aem.live npx playwright test nala/blocks/entitlement-check/entitlement-check.test.cjs --project=edu-live-chromium --project=edu-live-firefox --project=edu-live-webkit
+```
+
 ## Security
 1. Create a Service Now ID for your project via [Service Registry Portal](https://adobe.service-now.com/service_registry_portal.do#/search)
 2. Update the `.kodiak/config.yaml` file to make sure valid team members are assigned security vulnerability Jira tickets.
