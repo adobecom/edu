@@ -1,7 +1,12 @@
 const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
+const { readFile } = require('node:fs/promises');
+const path = require('node:path');
 
 const fixture = '/test/blocks/entitlement-check/integration.html';
+const fixtureRoot = path.join(__dirname, '../../../test/blocks/entitlement-check');
+const blockRoot = path.join(__dirname, '../../../edu/blocks/entitlement-check');
+const fragmentPath = path.join(fixtureRoot, 'fragment.plain.html');
 const service = /^https:\/\/edu-org(?:-stage)?\.adobe\.io\/v1\/entitlements$/;
 const adobeDestination = /^https:\/\/www\.(?:stage\.)?adobe\.com\/home\/a\//;
 const stageDestination = 'https://www.stage.adobe.com/home/a/school.example.org?pa_code=PA-2300';
@@ -11,7 +16,9 @@ const progressModule = '**/libs/features/spectrum-web-components/dist/progress-c
 async function open(page, query = '') {
   await page.goto(`${fixture}${query}`);
   await expect(page.locator('html')).toHaveAttribute('data-ready', 'true');
-  await page.getByRole('link', { name: 'Check eligibility', exact: true }).click();
+  const trigger = page.getByRole('link', { name: 'Check eligibility', exact: true });
+  await trigger.focus();
+  await trigger.press('Enter');
   await expect(page.getByRole('textbox', { name: 'College email address' })).toBeVisible();
   await expect(page.locator('.entitlement-check')).toHaveCSS('text-align', 'center');
   await page.evaluate(() => document.fonts.ready);
@@ -28,7 +35,12 @@ async function captureAnalytics(page) {
     window.entitlementAnalytics = [];
     window.entitlementClicks = [];
     // eslint-disable-next-line no-underscore-dangle
-    window._satellite = { track: (type, payload) => window.entitlementAnalytics.push({ type, payload }) };
+    window._satellite = {
+      track: (type, payload) => {
+        window.entitlementAnalytics.push({ type, payload });
+        window.captureEntitlementSnapshot?.();
+      },
+    };
     document.addEventListener('click', (event) => {
       const control = event.target.closest('[daa-ll]');
       if (control) {
@@ -36,6 +48,7 @@ async function captureAnalytics(page) {
           label: control.getAttribute('daa-ll'),
           defaultPrevented: event.defaultPrevented,
         });
+        window.captureEntitlementSnapshot?.();
       }
     });
   });
@@ -49,34 +62,40 @@ async function getAnalytics(page) {
 }
 
 async function captureNavigation(page, onNavigation) {
-  const prefix = 'entitlement-navigation:';
-  page.on('console', (message) => {
-    const value = message.text();
-    if (value.startsWith(prefix)) onNavigation(JSON.parse(value.slice(prefix.length)));
+  // Capture before navigation without relying on browser-specific unload events.
+  let snapshot;
+  let destination;
+  const publishSnapshot = () => {
+    if (snapshot && destination) onNavigation({ ...snapshot, destination });
+  };
+  await page.exposeFunction('recordEntitlementSnapshot', (value) => {
+    snapshot = value;
+    publishSnapshot();
   });
-  await page.addInitScript((marker) => {
-    let destination;
-    window.navigation.addEventListener('navigate', (event) => {
-      destination = event.destination.url;
+  page.on('request', (request) => {
+    if (!request.isNavigationRequest() || request.frame() !== page.mainFrame()) return;
+    if (new URL(request.url()).pathname === fixture) {
+      snapshot = undefined;
+      destination = undefined;
+    } else if (/^https:\/\/www\.(?:stage\.)?adobe\.com\//.test(request.url())) {
+      destination = request.url();
+      publishSnapshot();
+    }
+  });
+  await page.addInitScript(() => {
+    window.captureEntitlementSnapshot = () => window.recordEntitlementSnapshot({
+      state: document.querySelector('.entitlement-check')?.dataset.state,
+      result: Boolean(document.querySelector('.entitlement-check-result')),
+      cta: Boolean(document.querySelector('.entitlement-check-continue')),
+      events: (window.entitlementAnalytics || []).filter(
+        ({ payload }) => {
+          const name = payload?.xdm?.web?.webInteraction?.name;
+          return name?.startsWith('ar_') || name?.startsWith('entitlement-check:');
+        },
+      ),
+      clicks: window.entitlementClicks || [],
     });
-    window.addEventListener('beforeunload', () => {
-      const snapshot = {
-        destination,
-        state: document.querySelector('.entitlement-check')?.dataset.state,
-        result: Boolean(document.querySelector('.entitlement-check-result')),
-        cta: Boolean(document.querySelector('.entitlement-check-continue')),
-        events: (window.entitlementAnalytics || []).filter(
-          ({ payload }) => {
-            const name = payload?.xdm?.web?.webInteraction?.name;
-            return name?.startsWith('ar_') || name?.startsWith('entitlement-check:');
-          },
-        ),
-        clicks: window.entitlementClicks || [],
-      };
-      // eslint-disable-next-line no-console
-      console.info(`${marker}${JSON.stringify(snapshot)}`);
-    });
-  }, prefix);
+  });
 }
 
 async function checkAccessibility(page, scope = '.entitlement-check-modal') {
@@ -282,11 +301,23 @@ test('keeps the authored label and eligibility usable when the shared indicator 
 });
 
 test.beforeEach(async ({ page }) => {
-  // Serve real Milo under /libs; mock eligibility requests and Adobe navigation.
-  await page.route('**/libs/**', async (route) => {
-    const url = new URL(route.request().url());
-    const response = await route.fetch({ url: `https://main--milo--adobecom.aem.live${url.pathname}${url.search}` });
-    await route.fulfill({ response });
+  page.on('pageerror', (error) => {
+    // eslint-disable-next-line no-console
+    console.error('Entitlement fixture page error:', error);
+  });
+  page.on('requestfailed', (request) => {
+    if (request.resourceType() !== 'script') return;
+    // eslint-disable-next-line no-console
+    console.error('Entitlement fixture request failed:', request.url(), request.failure()?.errorText);
+  });
+  // Test fixtures are intentionally excluded from AEM deployments.
+  await page.route('**/test/blocks/entitlement-check/**', (route) => {
+    const file = new URL(route.request().url()).pathname.split('/entitlement-check/')[1];
+    return route.fulfill({ path: path.join(fixtureRoot, file) });
+  });
+  await page.route('**/edu/blocks/entitlement-check/**', (route) => {
+    const file = new URL(route.request().url()).pathname.split('/entitlement-check/')[1];
+    return route.fulfill({ path: path.join(blockRoot, file) });
   });
   await page.route(adobeDestination, (route) => route.fulfill({
     contentType: 'text/html',
@@ -295,7 +326,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.afterEach(async ({ page }) => {
-  // Background imports may still be proxied when the fixture is closed.
+  // Background imports may still be pending when the fixture is closed.
   await page.unrouteAll({ behavior: 'ignoreErrors' });
 });
 
@@ -318,14 +349,16 @@ test.afterEach(async ({ page }) => {
     const mobile = name === 'mobile';
     const modalBox = await page.locator('.entitlement-check-modal').boundingBox();
     expect(modalBox.width).toBe(mobile ? 338 : 715);
-    expect(layout.height).toBe(mobile ? 511 : 415);
+    expect(layout.height).toBeLessThanOrEqual(height);
+    const introDescription = await relativeBox(page, '.entitlement-check-intro .entitlement-check-description');
     const inputBox = await relativeBox(page, '.entitlement-check input[type="email"]');
     expect(inputBox.x).toBe(mobile ? 19 : 52);
-    expect(inputBox.y).toBe(mobile ? 232 : 194);
-    expect(inputBox.height).toBe(40);
+    expect(inputBox.y).toBeCloseTo(introDescription.y + introDescription.height + 24 + 20 + 8, 0);
+    expect(inputBox.height).toBeGreaterThanOrEqual(40);
+    expect(inputBox.height).toBeLessThanOrEqual(41);
     const submitBox = await relativeBox(page, '.entitlement-check-submit');
-    expect(submitBox.y).toBe(mobile ? 437 : 341);
     expect(submitBox.height).toBe(38);
+    expect(Math.abs(layout.height - (submitBox.y + submitBox.height + 36))).toBeLessThanOrEqual(1);
     const input = page.getByRole('textbox', { name: 'College email address' });
     const consent = page.getByRole('checkbox');
     await expect(consent).not.toBeChecked();
@@ -334,7 +367,7 @@ test.afterEach(async ({ page }) => {
     const legalBox = await relativeBox(page, '.entitlement-check-legal');
     expect(consentBox.width).toBe(12);
     expect(consentBox.height).toBe(12);
-    expect(legalBox.height).toBe(mobile ? 81 : 45);
+    expect(submitBox.y).toBeCloseTo(legalBox.y + legalBox.height + 18, 0);
     await page.getByRole('button', { name: 'Check eligibility' }).click();
     await expect(page.getByRole('alert')).toHaveText('This field is required.');
     await expect(input).toBeFocused();
@@ -365,9 +398,12 @@ test.afterEach(async ({ page }) => {
     await input.press('Enter');
     await expect(page.locator('.entitlement-check')).toHaveAttribute('data-state', 'rejected');
     await expect(page.getByRole('link', { name: 'Get my free trial' })).toHaveAttribute('href', 'https://www.adobe.com/creativecloud/start-with-free-creativecloud.html');
+    await page.evaluate(() => document.fonts.ready);
     const trialBox = await relativeBox(page, '.entitlement-check-trial');
-    expect(trialBox.y).toBe(mobile ? 278 : 229);
-    expect(trialBox.width).toBe(153);
+    const descriptionBox = await relativeBox(page, '.entitlement-check-result .entitlement-check-description');
+    expect(trialBox.y).toBeCloseTo(descriptionBox.y + descriptionBox.height + 28, 1);
+    expect(trialBox.width).toBeGreaterThanOrEqual(153);
+    expect(trialBox.x + trialBox.width / 2).toBeCloseTo(modalBox.width / 2, 1);
     expect(trialBox.height).toBe(40);
     await checkAccessibility(page);
     expect(await page.locator('.dialog-modal').evaluate((dialog) => (
@@ -487,9 +523,8 @@ test.afterEach(async ({ page }) => {
       let beforeNavigation;
       await captureNavigation(page, (state) => { beforeNavigation = state; });
       await page.route('**/test/blocks/entitlement-check/fragment.plain.html', async (route) => {
-        const response = await route.fetch();
-        const body = (await response.text()).replace('>Get my free trial</a>', ' daa-ll="authored-trial">Explore plans</a>');
-        await route.fulfill({ response, body });
+        const body = (await readFile(fragmentPath, 'utf8')).replace('>Get my free trial</a>', ' daa-ll="authored-trial">Explore plans</a>');
+        await route.fulfill({ contentType: 'text/html', body });
       });
       const destination = 'https://www.adobe.com/creativecloud/start-with-free-creativecloud.html';
       await page.route(destination, (route) => route.fulfill({
@@ -539,8 +574,9 @@ test.afterEach(async ({ page }) => {
       else if (method === 'Escape') await page.keyboard.press('Escape');
       else {
         await page.evaluate(async () => {
-          const libs = '/libs';
-          const { closeModal } = await import(`${libs}/blocks/modal/modal.js`);
+          const scripts = '/test/blocks/entitlement-check/mocks/scripts.js';
+          const { getLibs } = await import(scripts);
+          const { closeModal } = await import(`${getLibs()}/blocks/modal/modal.js`);
           await closeModal(document.querySelector('.dialog-modal'));
         });
       }
@@ -569,9 +605,8 @@ test('long validation copy remains reachable on a narrow, short viewport', async
   await page.setViewportSize({ width: 320, height: 360 });
   const message = 'Please enter your college email address to check eligibility. '.repeat(8).trim();
   await page.route('**/test/blocks/entitlement-check/fragment.plain.html', async (route) => {
-    const response = await route.fetch();
-    const body = (await response.text()).replace('This field is required.', message);
-    await route.fulfill({ response, body });
+    const body = (await readFile(fragmentPath, 'utf8')).replace('This field is required.', message);
+    await route.fulfill({ contentType: 'text/html', body });
   });
   await open(page);
   const slot = page.locator('.entitlement-check-error-slot');

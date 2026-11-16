@@ -140,7 +140,7 @@ class BaseReporter {
       this.results
         .filter((result) => result.status === 'failed')
         .forEach((failedTest) => {
-          console.log(`Test: ${failedTest.title.split('@')[1]}`);
+          console.log(`Test: ${failedTest.name}`);
           console.log(`Error Message: ${failedTest.errorMessage}`);
           console.log(`Error Stack: ${failedTest.errorStack}`);
           console.log('-------------------------');
@@ -162,7 +162,7 @@ class BaseReporter {
     let url;
 
     const titleParts = title.split('@');
-    const name = titleParts[1].trim();
+    const name = (titleParts[1] ?? titleParts[0]).trim();
     const tags = titleParts.slice(2).map((tag) => tag.trim());
 
     const projectConfig = this.config.projects.find((project) => project.name === projectId);

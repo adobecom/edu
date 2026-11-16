@@ -34,6 +34,19 @@ async function report(tests) {
 }
 
 test.describe('Base reporter final outcomes @nopr', () => {
+  test('collects plain test titles alongside legacy tagged titles', async () => {
+    const plain = testCase('unexpected', ['failed']);
+    plain.title = 'keeps the form usable when the indicator fails to load';
+    const tagged = testCase('expected', ['passed']);
+    tagged.title = '@demo-basic @demo @smoke';
+    const reporter = await report([plain, tagged]);
+
+    expect(reporter.results[0]).toMatchObject({ name: plain.title, tags: [], status: 'failed' });
+    expect(reporter.results[1]).toMatchObject({ name: 'demo-basic', tags: ['demo', 'smoke'], status: 'passed' });
+    expect(reporter.failedTests).toBe(1);
+    expect(reporter.passedTests).toBe(1);
+  });
+
   test('reports five expected and one flaky test without counting retries as passes', async () => {
     const tests = Array.from({ length: 5 }, () => testCase('expected', ['passed']));
     tests.push(testCase('flaky', ['failed', 'passed']));
