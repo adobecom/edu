@@ -323,11 +323,12 @@ test.beforeEach(async ({ page }) => {
   await page.route('**/libs/**', async (route) => {
     const url = new URL(route.request().url());
     const response = await route.fetch({ url: `https://main--milo--adobecom.aem.live${url.pathname}${url.search}` });
-    const headers = response.headers();
-    // route.fetch decodes the body; Firefox rejects the original encoding/length.
-    delete headers['content-encoding'];
-    delete headers['content-length'];
-    await route.fulfill({ response, headers, body: await response.body() });
+    // Forward decoded assets, not CDN transport/cache headers from another origin.
+    await route.fulfill({
+      status: response.status(),
+      contentType: response.headers()['content-type'],
+      body: await response.body(),
+    });
   });
   await page.route(adobeDestination, (route) => route.fulfill({
     contentType: 'text/html',
