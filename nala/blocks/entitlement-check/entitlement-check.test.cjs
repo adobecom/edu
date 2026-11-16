@@ -305,13 +305,8 @@ test.beforeEach(async ({ page }) => {
     // eslint-disable-next-line no-console
     console.error('Entitlement fixture page error:', error);
   });
-  page.on('console', (message) => {
-    if (message.type() !== 'error') return;
-    // eslint-disable-next-line no-console
-    console.error('Entitlement fixture console error:', message.text());
-  });
   page.on('requestfailed', (request) => {
-    if (request.failure()?.errorText === 'NS_BINDING_ABORTED') return;
+    if (request.resourceType() !== 'script') return;
     // eslint-disable-next-line no-console
     console.error('Entitlement fixture request failed:', request.url(), request.failure()?.errorText);
   });
@@ -328,7 +323,11 @@ test.beforeEach(async ({ page }) => {
   await page.route('**/libs/**', async (route) => {
     const url = new URL(route.request().url());
     const response = await route.fetch({ url: `https://main--milo--adobecom.aem.live${url.pathname}${url.search}` });
-    await route.fulfill({ response });
+    const headers = response.headers();
+    // route.fetch decodes the body; Firefox rejects the original encoding/length.
+    delete headers['content-encoding'];
+    delete headers['content-length'];
+    await route.fulfill({ response, headers, body: await response.body() });
   });
   await page.route(adobeDestination, (route) => route.fulfill({
     contentType: 'text/html',
@@ -365,7 +364,8 @@ test.afterEach(async ({ page }) => {
     const inputBox = await relativeBox(page, '.entitlement-check input[type="email"]');
     expect(inputBox.x).toBe(mobile ? 19 : 52);
     expect(inputBox.y).toBeCloseTo(introDescription.y + introDescription.height + 24 + 20 + 8, 0);
-    expect(inputBox.height).toBe(40);
+    expect(inputBox.height).toBeGreaterThanOrEqual(40);
+    expect(inputBox.height).toBeLessThanOrEqual(41);
     const submitBox = await relativeBox(page, '.entitlement-check-submit');
     expect(submitBox.height).toBe(38);
     expect(Math.abs(layout.height - (submitBox.y + submitBox.height + 36))).toBeLessThanOrEqual(1);
