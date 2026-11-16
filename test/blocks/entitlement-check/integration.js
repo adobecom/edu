@@ -1,6 +1,6 @@
 import { setLibs } from './mocks/scripts.js';
 
-const libs = '/libs';
+const libs = 'https://main--milo--adobecom.aem.live/libs';
 setLibs(libs);
 const { setConfig, loadArea } = await import(`${libs}/utils/utils.js`);
 setConfig({ codeRoot: '/edu', miloLibs: libs });

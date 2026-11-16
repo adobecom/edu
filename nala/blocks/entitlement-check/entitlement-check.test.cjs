@@ -319,17 +319,6 @@ test.beforeEach(async ({ page }) => {
     const file = new URL(route.request().url()).pathname.split('/entitlement-check/')[1];
     return route.fulfill({ path: path.join(blockRoot, file) });
   });
-  // Serve real Milo under /libs; mock eligibility requests and Adobe navigation.
-  await page.route('**/libs/**', async (route) => {
-    const url = new URL(route.request().url());
-    const response = await route.fetch({ url: `https://main--milo--adobecom.aem.live${url.pathname}${url.search}` });
-    // Forward decoded assets, not CDN transport/cache headers from another origin.
-    await route.fulfill({
-      status: response.status(),
-      contentType: response.headers()['content-type'],
-      body: await response.body(),
-    });
-  });
   await page.route(adobeDestination, (route) => route.fulfill({
     contentType: 'text/html',
     body: '<!doctype html><title>Mock destination</title>',
@@ -337,7 +326,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.afterEach(async ({ page }) => {
-  // Background imports may still be proxied when the fixture is closed.
+  // Background imports may still be pending when the fixture is closed.
   await page.unrouteAll({ behavior: 'ignoreErrors' });
 });
 
@@ -585,8 +574,9 @@ test.afterEach(async ({ page }) => {
       else if (method === 'Escape') await page.keyboard.press('Escape');
       else {
         await page.evaluate(async () => {
-          const libs = '/libs';
-          const { closeModal } = await import(`${libs}/blocks/modal/modal.js`);
+          const scripts = '/test/blocks/entitlement-check/mocks/scripts.js';
+          const { getLibs } = await import(scripts);
+          const { closeModal } = await import(`${getLibs()}/blocks/modal/modal.js`);
           await closeModal(document.querySelector('.dialog-modal'));
         });
       }
