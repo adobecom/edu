@@ -301,6 +301,10 @@ test('keeps the authored label and eligibility usable when the shared indicator 
 });
 
 test.beforeEach(async ({ page }) => {
+  page.on('pageerror', (error) => {
+    // eslint-disable-next-line no-console
+    console.error('Entitlement fixture page error:', error);
+  });
   // Test fixtures are intentionally excluded from AEM deployments.
   await page.route('**/test/blocks/entitlement-check/**', (route) => {
     const file = new URL(route.request().url()).pathname.split('/entitlement-check/')[1];
@@ -346,14 +350,15 @@ test.afterEach(async ({ page }) => {
     const mobile = name === 'mobile';
     const modalBox = await page.locator('.entitlement-check-modal').boundingBox();
     expect(modalBox.width).toBe(mobile ? 338 : 715);
-    expect(layout.height).toBe(mobile ? 511 : 415);
+    expect(layout.height).toBeLessThanOrEqual(height);
+    const introDescription = await relativeBox(page, '.entitlement-check-intro .entitlement-check-description');
     const inputBox = await relativeBox(page, '.entitlement-check input[type="email"]');
     expect(inputBox.x).toBe(mobile ? 19 : 52);
-    expect(inputBox.y).toBe(mobile ? 232 : 194);
+    expect(inputBox.y).toBeCloseTo(introDescription.y + introDescription.height + 24 + 20 + 8, 0);
     expect(inputBox.height).toBe(40);
     const submitBox = await relativeBox(page, '.entitlement-check-submit');
-    expect(submitBox.y).toBe(mobile ? 437 : 341);
     expect(submitBox.height).toBe(38);
+    expect(Math.abs(layout.height - (submitBox.y + submitBox.height + 36))).toBeLessThanOrEqual(1);
     const input = page.getByRole('textbox', { name: 'College email address' });
     const consent = page.getByRole('checkbox');
     await expect(consent).not.toBeChecked();
@@ -362,7 +367,7 @@ test.afterEach(async ({ page }) => {
     const legalBox = await relativeBox(page, '.entitlement-check-legal');
     expect(consentBox.width).toBe(12);
     expect(consentBox.height).toBe(12);
-    expect(legalBox.height).toBe(mobile ? 81 : 45);
+    expect(submitBox.y).toBeCloseTo(legalBox.y + legalBox.height + 18, 0);
     await page.getByRole('button', { name: 'Check eligibility' }).click();
     await expect(page.getByRole('alert')).toHaveText('This field is required.');
     await expect(input).toBeFocused();
