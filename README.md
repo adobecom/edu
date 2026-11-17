@@ -29,6 +29,47 @@ npm run test:watch
 ```
 This will give you several options to debug tests. Note: coverage may not be accurate.
 
+### Automated accessibility regression tests (Nala)
+
+After `npm ci` and `npx playwright install`, run the automated accessibility subset:
+
+```sh
+LOCAL_TEST_LIVE_URL=https://main--edu--adobecom.aem.live npx playwright test --grep @a11y --project=edu-live-chromium --project=edu-live-firefox --project=edu-live-webkit
+```
+
+Set `LOCAL_TEST_LIVE_URL` to your preview origin to test published changes. These
+tests are also discovered by the existing Nala PR workflow's desktop browser
+projects. A PR label filter must include `@a11y` to select this entire subset.
+On macOS WebKit, keyboard tests use Option+Tab (and Option+Shift+Tab) so native
+traversal includes links without altering the DOM's focus order.
+
+| Coverage | Automated assertions |
+| --- | --- |
+| Media block on `/drafts/nala/demo/demo-page` | Expected accessible headings/link names (including Milo's heading-context enhancement), bounded keyboard reachability, forward/reverse Tab order within the block, Enter navigation, and axe checks |
+| Local prompt-card group fixture | Production component JS/CSS, named buttons, forward/reverse Tab order into/out of cards, Enter/Space activation, focus retention, and live-region DOM updates including repeated actions |
+| Text spacing on both components | At 1280px and 375px widths: apply and verify line height 1.5, paragraph spacing 2em (where paragraphs exist), letter spacing 0.12em, and word spacing 0.16em; check text against clipping ancestors, page horizontal overflow, and keyboard functionality |
+
+Prompt-card tests route local repository files without a server; only external
+Milo tag/tracking helpers and the OS clipboard are stubbed. They do not test the
+full Milo integration or system clipboard. Run just these offline component tests
+with `npx playwright test nala/blocks/prompt-card --project=edu-live-chromium`.
+The media tests require the published demo page and its current expected content.
+
+Each axe scan attaches its full JSON results, including `incomplete` checks needing
+manual review, to the Playwright report. Spacing tests attach screenshots for
+review; these are evidence, not automatically approved visual baselines. Spacing
+overrides remain active for the rest of each isolated test page.
+The existing PR workflow uploads the HTML report and test outputs as the
+`nala-results` artifact, even after failures, with a 14-day retention period.
+
+This is representative regression coverage, **not WCAG conformance certification
+or actual screen-reader testing**. Accessible-name/state assertions and live-region
+DOM checks do not verify spoken announcements. The clipping heuristic does not
+prove the absence of overlap, obscured focus, or all possible layout failures.
+Dialogs, global navigation, forms, other component variants/locales, real
+screen-reader/browser combinations, and human usability assessment remain outside
+this initial subset. The URL-input workflow and PR-comment bot are separate work.
+
 ### Nala end-to-end tests
 
 Run the demo against stage, including repeated runs in all three desktop browsers:

@@ -3,13 +3,14 @@
 import { test } from '@playwright/test';
 import { AccessibilityError } from './customerrors.cjs';
 
+const { randomUUID } = require('node:crypto');
 const AxeBuilder = require('@axe-core/playwright').default;
 
 /**
- * Run accessibility test to meet legal compliance (WCAG 2.0/2.1 A & AA)
+ * Check for automatically detectable WCAG 2.0/2.1 A & AA violations.
  * @param {Object} page - The page object.
  * @param {string} [testScope='body'] - Optional scope for the accessibility test. Default is the entire page ('body').
- * @param {string[]} [includeTags=['wcag2a', 'wcag2aa']] - Optional tags to include in the accessibility test. Default is WCAG 2.0/2.1 A & AA.
+ * @param {string[]} [includeTags] - Axe rule tags; defaults to WCAG 2.0/2.1 A & AA.
  * @param {number} [maxViolations=0] - Optional maximum number of allowed violations before the test fails. Default is 0 (any violation fails the test).
  * @param {boolean} [skipA11yTest=false] - If true, the test step is logged and skipped.
  */
@@ -24,10 +25,11 @@ async function runAccessibilityTest({
     console.log(
       `[Skipping]: Accessibility test step skipped for this component ${testScope}`,
     );
-    return;
+    return undefined;
   }
 
   let testName;
+  let scopeAttribute;
   try {
     // Retrive the test title (name)
     testName = test.info().title.includes(',')
@@ -50,11 +52,10 @@ async function runAccessibilityTest({
       typeof testScope === 'object'
       && testScope.constructor.name === 'Locator'
     ) {
-      const eleHandle = await testScope.elementHandle();
-      if (!eleHandle) {
-        throw new AccessibilityError('Element not found for the given locator');
-      }
-      testElement = eleHandle;
+      // AxeBuilder.include accepts selectors, not Playwright ElementHandles.
+      scopeAttribute = `data-nala-a11y-${randomUUID()}`;
+      await testScope.evaluate((element, attribute) => element.setAttribute(attribute, ''), scopeAttribute);
+      testElement = `[${scopeAttribute}]`;
       scopeDescription = `the provided locator: ${testScope}`;
     } else {
       scopeDescription = testScope === 'body' ? 'the entire page' : `section: ${testScope}`;
@@ -73,6 +74,14 @@ async function runAccessibilityTest({
         testScope === 'body' ? 'Entire Page' : `Specific Section: ${testScope}`,
       ...axe,
     };
+
+    await test.info().attach('Accessibility Test Results', {
+      body: JSON.stringify(enhancedAxeResults, null, 2),
+      contentType: 'application/json',
+    });
+    if (axe.incomplete.length > 0) {
+      console.warn(`[Accessibility Test]: ${axe.incomplete.length} rule(s) need manual review. See the attached incomplete results.`);
+    }
 
     const violationCount = enhancedAxeResults.violations.length;
 
@@ -104,12 +113,6 @@ async function runAccessibilityTest({
         violationsDetails += `   - Fix: ${violation.helpUrl}\n`;
       });
 
-      // attached accessibility voilations details to test results
-      await test.info().attach('Accessibility Test Results', {
-        body: JSON.stringify(enhancedAxeResults, null, 2),
-        contentType: 'application/json',
-      });
-
       throw new AccessibilityError(
         `\nAccessibility test failed : ${violationCount} violation(s) found. \n ${violationsDetails}`,
       );
@@ -122,10 +125,17 @@ async function runAccessibilityTest({
         `[Accessibility Test]: No accessibility violations found for ${testName}.`,
       );
     }
+    return enhancedAxeResults;
   } catch (err) {
     throw new AccessibilityError(
       `[Accessibility Test failed for ${testName}].\n ${err.message}`,
     );
+  } finally {
+    if (scopeAttribute) {
+      await page.locator(`[${scopeAttribute}]`).evaluateAll((elements, attribute) => {
+        elements.forEach((element) => element.removeAttribute(attribute));
+      }, scopeAttribute);
+    }
   }
 }
 
