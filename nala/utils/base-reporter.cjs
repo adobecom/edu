@@ -13,9 +13,6 @@ const pattern = [
 
 const ansiRegex = new RegExp(pattern, 'g');
 
-// limit failed status
-const failedStatus = ['failed', 'flaky', 'timedOut', 'interrupted'];
-
 function stripAnsi(str) {
   if (!str || typeof str !== 'string') return str;
   return str.replace(ansiRegex, '');
@@ -27,6 +24,7 @@ class BaseReporter {
     this.results = [];
     this.passedTests = 0;
     this.failedTests = 0;
+    this.flakyTests = 0;
     this.skippedTests = 0;
   }
 
@@ -35,21 +33,20 @@ class BaseReporter {
     this.rootSuite = suite;
   }
 
-  async onTestEnd(test, result) {
-    const { title, retries, _projectId } = test;
+  collectTestResult(test) {
+    const { title } = test;
+    const result = test.results[test.results.length - 1];
+    const outcome = test.outcome();
     const {
       name, tags, url, browser, env, branch, repo,
-    } = this.parseTestTitle(title, _projectId);
+    } = this.parseTestTitle(title, test.parent.project().name);
     const {
       status,
       duration,
       error: { message: errorMessage, value: errorValue, stack: errorStack } = {},
       retry,
-    } = result;
+    } = result || {};
 
-    if (retry < retries && status === 'failed') {
-      return;
-    }
     this.results.push({
       title,
       name,
@@ -59,25 +56,31 @@ class BaseReporter {
       browser,
       branch,
       repo,
-      status: failedStatus.includes(status) ? 'failed' : status,
+      status: { expected: 'passed', unexpected: 'failed', flaky: 'flaky', skipped: 'skipped' }[outcome],
+      outcome,
+      expectedStatus: test.expectedStatus,
+      finalAttemptStatus: status,
       errorMessage: stripAnsi(errorMessage),
       errorValue,
       errorStack: stripAnsi(errorStack),
-      stdout: test.stdout,
-      stderr: test.stderr,
+      stdout: result?.stdout,
+      stderr: result?.stderr,
       duration,
       retry,
     });
-    if (status === 'passed') {
+    if (outcome === 'expected') {
       this.passedTests += 1;
-    } else if (failedStatus.includes(status)) {
+    } else if (outcome === 'unexpected') {
       this.failedTests += 1;
-    } else if (status === 'skipped') {
+    } else if (outcome === 'flaky') {
+      this.flakyTests += 1;
+    } else if (outcome === 'skipped') {
       this.skippedTests += 1;
     }
   }
 
   async onEnd() {
+    this.rootSuite.allTests().forEach((test) => this.collectTestResult(test));
     const summary = this.printResultSummary();
     const resultSummary = { summary };
 
@@ -92,8 +95,8 @@ class BaseReporter {
 
   printResultSummary() {
     const totalTests = this.results.length;
-    const passPercentage = ((this.passedTests / totalTests) * 100).toFixed(2);
-    const failPercentage = ((this.failedTests / totalTests) * 100).toFixed(2);
+    const passPercentage = (totalTests ? (this.passedTests / totalTests) * 100 : 0).toFixed(2);
+    const failPercentage = (totalTests ? (this.failedTests / totalTests) * 100 : 0).toFixed(2);
     const miloLibs = process.env.MILO_LIBS || '';
     const prBranchUrl = process.env.PR_BRANCH_LIVE_URL ? (process.env.PR_BRANCH_LIVE_URL + miloLibs) : undefined;
     const projectBaseUrl = this.config.projects[0].use.baseURL;
@@ -123,6 +126,7 @@ class BaseReporter {
     \x1b[1m\x1b[33m# Total Test executed:\x1b[0m \x1b[32m${totalTests}\x1b[0m
     \x1b[1m\x1b[33m# Test Pass          :\x1b[0m \x1b[32m${this.passedTests} (${passPercentage}%)\x1b[0m
     \x1b[1m\x1b[33m# Test Fail          :\x1b[0m \x1b[31m${this.failedTests} (${failPercentage}%)\x1b[0m
+    \x1b[1m\x1b[33m# Test Flaky         :\x1b[0m \x1b[33m${this.flakyTests}\x1b[0m
     \x1b[1m\x1b[33m# Test Skipped       :\x1b[0m \x1b[32m${this.skippedTests}\x1b[0m
     \x1b[1m\x1b[33m** Application URL  :\x1b[0m \x1b[32m${envURL}\x1b[0m
     \x1b[1m\x1b[33m** Executed on      :\x1b[0m \x1b[32m${exeEnv}\x1b[0m

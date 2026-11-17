@@ -16,8 +16,20 @@ on:
 jobs:
   run-nala-tests:
     name: Running Nala E2E UI Tests
-    # Playwright 1.56 supports Ubuntu 24.04, not 26.04.
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
+    # Hung steps would otherwise hold the PR check for GitHub's 6-hour default.
+    timeout-minutes: 15
+    # Browsers and their OS dependencies come preinstalled in the official
+    # Playwright image, so the job no longer runs `playwright install
+    # --with-deps` against the runner OS. That step broke every run when
+    # ubuntu-latest moved to 26.04 (unsupported by Playwright 1.56), and the
+    # container makes the runner's OS irrelevant. The tag MUST match
+    # @playwright/test in package-lock.json; the verify step fails fast if not.
+    # --user 1001 is the image's non-root user (Firefox refuses to run as root
+    # under GitHub's container HOME).
+    container:
+      image: mcr.microsoft.com/playwright:v1.56.0-noble
+      options: --user 1001
     strategy:
       matrix:
         node-version: [24.x]
@@ -31,6 +43,22 @@ jobs:
         uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e
         with:
           node-version: ${{ matrix.node-version }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify container browsers match @playwright/test
+        # Fails in seconds (instead of every test failing on launch) when a
+        # @playwright/test bump lands without bumping the container image tag.
+        run: |
+          missing=0
+          for dir in $(npx playwright install --dry-run | awk '/Install location:/ {print $3}'); do
+            [ -d "$dir" ] || { echo "::error::Missing browser $dir"; missing=1; }
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo "::error::Container image does not match @playwright/test $(npx playwright --version). Bump the mcr.microsoft.com/playwright tag in nala-pr.yml."
+            exit 1
+          fi
 
       - name: Set execute permission for nalarun.sh
         run: chmod +x ./nala/utils/pr.run.sh

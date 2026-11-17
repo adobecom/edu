@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Entitlement check Milo integration fixture</title>
+    <link rel="stylesheet" href="/libs/styles/styles.css">
+    <link rel="stylesheet" href="/libs/blocks/modal/modal.css">
+    <script type="importmap">
+      {
+        "imports": {
+          "/edu/scripts/scripts.js": "/test/blocks/entitlement-check/mocks/scripts.js"
+        }
+      }
+    </script>
+    <script type="module" src="./integration.js"></script>
+  </head>
+  <body>
+    <main>
+      <a href="#eligibility-modal"
+         data-modal-hash="#eligibility-modal"
+         data-modal-path="/test/blocks/entitlement-check/fragment"
+         aria-label="Check eligibility">Check eligibility</a>
+    </main>
+  </body>
+</html>

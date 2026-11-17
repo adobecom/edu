@@ -1,0 +1,309 @@
+.dialog-modal.entitlement-check-modal {
+  width: 338px;
+  max-width: calc(100% - 32px);
+  border-radius: 16px;
+}
+
+.entitlement-check-modal .section,
+.entitlement-check-modal .section > .content {
+  margin: 0;
+  padding: 0;
+}
+
+.dialog-modal.entitlement-check-modal button.dialog-close {
+  top: 16px;
+  right: 16px;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 0;
+  background: url('./close.svg') center / 16px no-repeat;
+}
+
+.entitlement-check-modal .dialog-close svg {
+  visibility: hidden;
+}
+
+.entitlement-check {
+  max-width: 715px;
+  margin-inline: auto;
+  color: #2c2c2c;
+  text-align: center;
+  font-family: var(--body-font-family, "Adobe Clean", sans-serif);
+}
+
+.entitlement-check *,
+.entitlement-check *::before,
+.entitlement-check *::after {
+  box-sizing: border-box;
+}
+
+.entitlement-check [hidden] {
+  display: none;
+}
+
+.entitlement-check p {
+  margin: 0;
+}
+
+.entitlement-check-intro {
+  padding: 60px 19px 0;
+}
+
+.entitlement-check .entitlement-check-heading {
+  max-width: 500px;
+  margin: 0 auto 12px;
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.25;
+  letter-spacing: -0.03em;
+}
+
+.entitlement-check-intro .entitlement-check-heading {
+  max-width: 423px;
+}
+
+.entitlement-check-description {
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.entitlement-check-fields {
+  padding: 24px 19px 36px;
+  text-align: start;
+}
+
+.entitlement-check label {
+  display: block;
+  margin-bottom: 8px;
+  color: #535353;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 20px;
+}
+
+.entitlement-check input[type="email"] {
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  padding: 9px 16px;
+  border: 1px solid #6e6e6e;
+  border-radius: 4px;
+  background: #fff;
+  color: #2c2c2c;
+  font: inherit;
+  font-size: 16px;
+  line-height: 20px;
+}
+
+.entitlement-check input[type="email"]::placeholder {
+  color: #6e6e6e;
+}
+
+.entitlement-check input[type="email"][aria-invalid="true"] {
+  border-color: #f00;
+}
+
+.entitlement-check a {
+  color: #1473e6;
+  text-decoration: underline;
+}
+
+.entitlement-check input:focus-visible,
+.entitlement-check a:focus-visible,
+.entitlement-check button:focus-visible {
+  outline: 2px solid #1473e6;
+  outline-offset: 3px;
+}
+
+.entitlement-check-error-slot {
+  min-height: 42px;
+  margin-top: 12px;
+}
+
+.entitlement-check .entitlement-check-error {
+  position: relative;
+  padding-inline-start: 29px;
+  color: #d31510;
+  font-size: 14px;
+  line-height: 21px;
+}
+
+.entitlement-check-error::before {
+  content: "";
+  position: absolute;
+  top: 5px;
+  inset-inline-start: 0;
+  width: 16px;
+  height: 16px;
+  background: url('./error.svg') center / contain no-repeat;
+}
+
+.entitlement-check-consent {
+  display: flex;
+  align-items: flex-start;
+  margin-top: 12px;
+}
+
+.entitlement-check .entitlement-check-consent-input {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  margin: 6px 0 0;
+  padding: 0;
+  accent-color: #3b63fb;
+  cursor: pointer;
+}
+
+.entitlement-check .entitlement-check-legal {
+  min-width: 0;
+  margin: 0;
+  padding-block: 4px 5px;
+  padding-inline-start: 9px;
+  color: #535353;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 18px;
+  cursor: pointer;
+}
+
+.entitlement-check-legal-paragraph {
+  display: block;
+}
+
+.entitlement-check .con-button {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  margin: 18px auto 0;
+  padding: 9px 18px 10px;
+  border: 0;
+  border-radius: 20px;
+  background: #3b63fb;
+  color: #fff;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 19px;
+  text-align: center;
+  text-decoration: none;
+  white-space: normal;
+  cursor: pointer;
+}
+
+.entitlement-check button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.entitlement-check .entitlement-check-submit {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding-block: 9px;
+}
+
+.entitlement-check form[aria-busy="true"] .entitlement-check-submit {
+  opacity: 1;
+}
+
+.entitlement-check-submit-label {
+  min-width: 0;
+}
+
+.entitlement-check-submit:has(sp-progress-circle:not([hidden])) .entitlement-check-submit-label {
+  visibility: hidden;
+}
+
+.entitlement-check .entitlement-check-progress {
+  --mod-progress-circle-size: 20px;
+  --mod-progress-circle-thickness: 2px;
+
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: block;
+  width: 20px;
+  height: 20px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .entitlement-check-progress {
+    --spectrum-animation-duration-2000: 0s;
+  }
+}
+
+.entitlement-check-result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: 390px;
+  padding: 84px 19px 72px;
+}
+
+.entitlement-check-result .entitlement-check-heading {
+  margin-bottom: 16px;
+}
+
+.entitlement-check-result .entitlement-check-description {
+  max-width: 501px;
+  font-size: 20px;
+}
+
+.entitlement-check-result .con-button {
+  min-width: min(153px, 100%);
+  margin-top: 28px;
+  font-size: 17px;
+  line-height: 21px;
+}
+
+html[dir="rtl"] .entitlement-check-modal button.dialog-close {
+  right: auto;
+  left: 16px;
+}
+
+@media (min-width: 600px) {
+  .dialog-modal.entitlement-check-modal {
+    width: 715px;
+  }
+
+  .entitlement-check-intro {
+    padding: 36px 52px 0;
+  }
+
+  .entitlement-check .entitlement-check-heading {
+    font-size: 28px;
+  }
+
+  .entitlement-check-intro .entitlement-check-heading {
+    max-width: 400px;
+  }
+
+  .entitlement-check-fields {
+    margin: 0 52px;
+    padding: 24px 0 36px;
+  }
+
+  .entitlement-check-result {
+    min-height: 350px;
+    padding: 90px 52px 81px;
+  }
+
+  .entitlement-check-error-slot {
+    min-height: 20px;
+  }
+
+  .entitlement-check .entitlement-check-error {
+    padding-inline-start: 24px;
+    line-height: 20px;
+  }
+
+  .entitlement-check-error::before {
+    top: 2px;
+  }
+}
