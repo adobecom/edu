@@ -49,3 +49,14 @@ jobs:
           GITHUB_ACTION_PATH: ${{ github.workspace }}
           IMS_EMAIL: ${{ secrets.IMS_EMAIL }}
           IMS_PASS: ${{ secrets.IMS_PASS }}
+
+      - name: Upload Nala report and accessibility evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nala-results
+          path: |
+            test-html-results/
+            test-results/
+          retention-days: 14
+          if-no-files-found: warn

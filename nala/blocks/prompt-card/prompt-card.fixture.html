@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Prompt card accessibility fixture</title>
+    <link rel="stylesheet" href="/edu/blocks/prompt-card/prompt-card.css">
+  </head>
+  <body>
+    <main>
+      <h1>Prompt cards</h1>
+      <a href="#before" id="before">Before cards</a>
+      <div class="section">
+        <div class="prompt-card group">
+          <div>
+            <div>prefix</div><div>title</div><div>prompt</div><div>button</div><div>toast</div>
+          </div>
+          <div>
+            <div>Study</div><div>Summarize a lesson</div><div>Summarize this lesson.</div><div>Copy</div><div>Lesson prompt copied</div>
+          </div>
+          <div>
+            <div>Practice</div><div>Build a quiz</div><div>Create a practice quiz.</div><div>Copy</div><div>Quiz prompt copied</div>
+          </div>
+        </div>
+      </div>
+      <a href="#after" id="after">After cards</a>
+    </main>
+    <script>window.libs = '/libs';</script>
+    <script type="module">
+      import init from '/edu/blocks/prompt-card/prompt-card.js';
+      await init(document.querySelector('.prompt-card'));
+      document.body.dataset.ready = 'true';
+    </script>
+  </body>
+</html>
