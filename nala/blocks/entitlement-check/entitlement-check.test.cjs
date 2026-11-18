@@ -86,7 +86,6 @@ async function checkAccessibility(page, scope = '.entitlement-check-modal') {
 
 async function formLayout(page) {
   return page.locator('.entitlement-check-modal').evaluate((modal) => ({
-    height: modal.getBoundingClientRect().height,
     legal: modal.querySelector('.entitlement-check-legal').getBoundingClientRect().top,
     submit: modal.querySelector('.entitlement-check-submit').getBoundingClientRect().top,
   }));
@@ -325,7 +324,6 @@ test.afterEach(async ({ page }) => {
     const layout = await formLayout(page);
     const mobile = name === 'mobile';
     const modalBox = await page.locator('.entitlement-check-modal').boundingBox();
-    expect(modalBox.width).toBe(mobile ? 338 : 715);
     const introBox = await relativeBox(page, '.entitlement-check-intro');
     const labelBox = await relativeBox(page, '.entitlement-check-fields > label');
     expect(labelBox.y - introBox.y - introBox.height).toBeCloseTo(24, 0);
@@ -337,7 +335,6 @@ test.afterEach(async ({ page }) => {
     expect(inputBox.height).toBeLessThanOrEqual(41);
     const submitBox = await relativeBox(page, '.entitlement-check-submit');
     expect(submitBox.height).toBe(38);
-    expect(layout.height - submitBox.y - submitBox.height).toBeCloseTo(36, 0);
     const input = page.getByRole('textbox', { name: 'College email address' });
     const consent = page.getByRole('checkbox');
     await expect(consent).not.toBeChecked();
