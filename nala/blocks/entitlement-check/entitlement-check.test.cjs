@@ -28,7 +28,12 @@ async function captureAnalytics(page) {
     window.entitlementAnalytics = [];
     window.entitlementClicks = [];
     // eslint-disable-next-line no-underscore-dangle
-    window._satellite = { track: (type, payload) => window.entitlementAnalytics.push({ type, payload }) };
+    window._satellite = {
+      track: (type, payload) => {
+        window.entitlementAnalytics.push({ type, payload });
+        if (payload.done) window.entitlementAnalyticsDone = payload.done;
+      },
+    };
     document.addEventListener('click', (event) => {
       const control = event.target.closest('[daa-ll]');
       if (control) {
@@ -482,10 +487,8 @@ test.afterEach(async ({ page }) => {
   });
 
   ['click', 'Enter'].forEach((activation) => {
-    test(`${mode}: rejected CTA tracks ${activation} without suppressing navigation or Milo click labels`, async ({ page }) => {
+    test(`${mode}: rejected CTA waits for analytics on ${activation} and preserves Milo click labels`, async ({ page }) => {
       await captureAnalytics(page);
-      let beforeNavigation;
-      await captureNavigation(page, (state) => { beforeNavigation = state; });
       await page.route('**/test/blocks/entitlement-check/fragment.plain.html', async (route) => {
         const response = await route.fetch();
         const body = (await response.text()).replace('>Get my free trial</a>', ' daa-ll="authored-trial">Explore plans</a>');
@@ -509,10 +512,23 @@ test.afterEach(async ({ page }) => {
       await expect(cta).toHaveAttribute('daa-ll', 'authored-trial');
       if (activation === 'click') await cta.click();
       else await cta.press('Enter');
+      const beforeNavigation = await page.evaluate(() => {
+        const done = window.entitlementAnalyticsDone;
+        const snapshot = {
+          url: window.location.href,
+          completion: typeof done,
+          events: window.entitlementAnalytics,
+          clicks: window.entitlementClicks,
+        };
+        done?.();
+        return snapshot;
+      });
+      expect(beforeNavigation.url).toContain(fixture);
+      expect(beforeNavigation.completion).toBe('function');
+      expect(beforeNavigation.events.map(({ payload }) => payload?.xdm?.web?.webInteraction?.name)
+        .filter((name) => name?.startsWith('ar_'))).toEqual(['ar_not_eligible', 'ar_399_free_trial_click']);
+      expect(beforeNavigation.clicks).toContainEqual({ label: 'authored-trial', defaultPrevented: true });
       await expect(page).toHaveURL(destination);
-      await expect.poll(() => beforeNavigation?.events.map(({ payload }) => payload.xdm.web.webInteraction.name))
-        .toEqual(['ar_not_eligible', 'ar_399_free_trial_click']);
-      expect(beforeNavigation.clicks).toContainEqual({ label: 'authored-trial', defaultPrevented: false });
     });
   });
 });

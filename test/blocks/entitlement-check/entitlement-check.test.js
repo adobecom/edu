@@ -20,6 +20,7 @@ describe('Entitlement check', () => {
   let originalLana;
   let originalSatellite;
   let satellite;
+  let originalUrl;
 
   async function mount(attached = true, markup = fixture, inModal = true) {
     modal = document.createElement('div');
@@ -43,6 +44,7 @@ describe('Entitlement check', () => {
   }
 
   beforeEach(async () => {
+    originalUrl = window.location.href;
     analyticsEvents.length = 0;
     clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     request = sinon.stub(window, 'fetch').resolves({ ok: true, json: async () => ({ status: 'NOT_ELIGIBLE' }) });
@@ -74,6 +76,7 @@ describe('Entitlement check', () => {
     window.lana = originalLana;
     // eslint-disable-next-line no-underscore-dangle
     window._satellite = originalSatellite;
+    window.history.replaceState(null, '', originalUrl);
   });
 
   it('does not track email input', async () => {
@@ -389,7 +392,7 @@ describe('Entitlement check', () => {
   });
 
   [true, false].forEach((inModal) => {
-    it(`tracks the rejected CTA without preventing default or bubbling ${inModal ? 'in a modal' : 'inline'}`, async () => {
+    it(`defers rejected CTA navigation without stopping bubbling ${inModal ? 'in a modal' : 'inline'}`, async () => {
       close();
       modal.remove();
       await clock.tickAsync(0);
@@ -398,8 +401,7 @@ describe('Entitlement check', () => {
       await submit();
       const link = block.querySelector('.entitlement-check-trial');
       const click = sinon.spy((event) => {
-        expect(event.defaultPrevented).to.equal(false);
-        event.preventDefault();
+        expect(event.defaultPrevented).to.equal(true);
       });
       modal.addEventListener('click', click, { once: true });
       link.click();
@@ -409,6 +411,109 @@ describe('Entitlement check', () => {
       expect(link.getAttribute('daa-ll')).to.equal('authored-trial');
       expect(link.href).to.equal('https://www.adobe.com/creativecloud/start-with-free-creativecloud.html');
       expect(analyticsEvents).to.deep.equal(['ar_not_eligible', 'ar_399_free_trial_click']);
+    });
+  });
+
+  it('navigates only after trial analytics completes and ignores duplicate clicks and callbacks', async () => {
+    await submit();
+    const link = block.querySelector('.entitlement-check-trial');
+    link.href = '#entitlement-trial';
+    const track = sinon.spy(satellite, 'track');
+    link.click();
+    link.click();
+    expect(track.calledOnce).to.equal(true);
+    expect(window.location.href).to.equal(originalUrl);
+    const { done } = track.firstCall.args[1];
+    expect(done).to.be.a('function');
+    done();
+    expect(window.location.hash).to.equal('#entitlement-trial');
+    expect(clock.countTimers()).to.equal(0);
+    window.history.replaceState(null, '', originalUrl);
+    done();
+    expect(window.location.href).to.equal(originalUrl);
+  });
+
+  it('logs a stalled trial analytics event and navigates after the bounded timeout', async () => {
+    await submit();
+    const link = block.querySelector('.entitlement-check-trial');
+    link.href = '#entitlement-trial';
+    link.click();
+    await clock.tickAsync(999);
+    expect(window.location.href).to.equal(originalUrl);
+    await clock.tickAsync(1);
+    expect(window.location.hash).to.equal('#entitlement-trial');
+    expect(window.lana.log.calledWithMatch('Entitlement check: trial analytics timed out')).to.equal(true);
+  });
+
+  it('keeps the trial CTA usable when the SDK is unavailable', async () => {
+    await submit();
+    const link = block.querySelector('.entitlement-check-trial');
+    link.href = '#entitlement-trial';
+    // eslint-disable-next-line no-underscore-dangle
+    window._satellite = undefined;
+    link.click();
+    await clock.tickAsync(1000);
+    expect(window.location.hash).to.equal('#entitlement-trial');
+    expect(window.lana.log.calledWithMatch('Entitlement check: trial analytics timed out')).to.equal(true);
+  });
+
+  it('logs a trial analytics failure and still navigates', async () => {
+    await submit();
+    const link = block.querySelector('.entitlement-check-trial');
+    link.href = '#entitlement-trial';
+    const track = sinon.spy(satellite, 'track');
+    link.click();
+    track.firstCall.args[1].done(undefined, new Error('SDK failed'));
+    expect(window.location.hash).to.equal('#entitlement-trial');
+    expect(window.lana.log.calledWithMatch('Entitlement check: trial analytics failed')).to.equal(true);
+    expect(clock.countTimers()).to.equal(0);
+  });
+
+  it('keeps the trial CTA usable when analytics dispatch throws', async () => {
+    await submit();
+    const link = block.querySelector('.entitlement-check-trial');
+    link.href = '#entitlement-trial';
+    sinon.stub(satellite, 'track').throws(new Error('SDK failed'));
+    link.click();
+    expect(window.location.hash).to.equal('#entitlement-trial');
+    expect(window.lana.log.calledWithMatch('Entitlement check: analytics event failed')).to.equal(true);
+    expect(clock.countTimers()).to.equal(0);
+  });
+
+  it('cancels pending trial navigation when the modal closes', async () => {
+    await submit();
+    const track = sinon.spy(satellite, 'track');
+    block.querySelector('.entitlement-check-trial').click();
+    const { done } = track.firstCall.args[1];
+    close();
+    done();
+    await clock.tickAsync(1000);
+    expect(window.location.href).to.equal(originalUrl);
+    expect(clock.countTimers()).to.equal(0);
+    expect(window.lana.log.called).to.equal(false);
+  });
+
+  ['modified', 'new-tab', 'download', 'prevented'].forEach((activation) => {
+    it(`preserves native ${activation} trial link behavior`, async () => {
+      await submit();
+      const link = block.querySelector('.entitlement-check-trial');
+      if (activation === 'new-tab') link.target = '_blank';
+      if (activation === 'download') link.setAttribute('download', '');
+      const track = sinon.spy(satellite, 'track');
+      const click = new MouseEvent('click', {
+        bubbles: true,
+        cancelable: true,
+        ctrlKey: activation === 'modified',
+      });
+      if (activation === 'prevented') click.preventDefault();
+      modal.addEventListener('click', (event) => {
+        expect(event.defaultPrevented).to.equal(activation === 'prevented');
+        event.preventDefault();
+      }, { once: true });
+      link.dispatchEvent(click);
+      expect(track.firstCall.args[1]).not.to.have.property('done');
+      expect(analyticsEvents).to.deep.equal(['ar_not_eligible', 'ar_399_free_trial_click']);
+      expect(clock.countTimers()).to.equal(0);
     });
   });
 

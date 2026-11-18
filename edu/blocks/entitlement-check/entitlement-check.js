@@ -23,10 +23,10 @@ function logError(message) {
   window.lana?.log(`Entitlement check: ${message}`, { tags: 'entitlement-check', severity: 'error' });
 }
 
-function dispatchAnalytics(name) {
+function dispatchAnalytics(name, done) {
   const { _satellite: satellite } = window;
   if (!satellite?.track) {
-    window.addEventListener('alloy_sendEvent', () => dispatchAnalytics(name), { once: true });
+    window.addEventListener('alloy_sendEvent', () => dispatchAnalytics(name, done), { once: true });
     return;
   }
   try {
@@ -34,6 +34,7 @@ function dispatchAnalytics(name) {
     const digitalData = { primaryEvent: { eventInfo: { eventName: name } } };
     satellite.track('event', {
       documentUnloading: true,
+      ...(done && { done }),
       xdm: {
         eventType: 'web.webinteraction.linkClicks',
         web: {
@@ -48,6 +49,7 @@ function dispatchAnalytics(name) {
     });
   } catch (e) {
     logError('analytics event failed');
+    done?.();
   }
 }
 
@@ -178,11 +180,12 @@ export default async function init(block) {
   let progressReady = false;
   let controller;
   let requestTimer;
+  let trialNavigationTimer;
 
-  function trackEvent(name) {
+  function trackEvent(name, done) {
     if (disposed || !block.isConnected
       || (modal?.dataset.closing && name !== 'ar_modal_close')) return;
-    dispatchAnalytics(name);
+    dispatchAnalytics(name, done);
   }
 
   function dispose(event) {
@@ -190,6 +193,7 @@ export default async function init(block) {
     if (event?.type === 'milo:modal:closed') trackEvent('ar_modal_close');
     controller?.abort();
     window.clearTimeout(requestTimer);
+    window.clearTimeout(trialNavigationTimer);
     // A cached page can be restored; leave its form usable for another attempt.
     if (event?.type === 'pagehide' && event.persisted) return;
     disposed = true;
@@ -229,7 +233,35 @@ export default async function init(block) {
     title.tabIndex = -1;
     const link = config['rejected-cta'].querySelector('a').cloneNode(true);
     link.className = 'con-button blue entitlement-check-trial';
-    link.addEventListener('click', () => trackEvent('ar_399_free_trial_click'));
+    let following = false;
+    link.addEventListener('click', (event) => {
+      if (event.defaultPrevented || event.button !== 0
+        || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey
+        || (link.target && link.target.toLowerCase() !== '_self')
+        || link.hasAttribute('download')) {
+        trackEvent('ar_399_free_trial_click');
+        return;
+      }
+      event.preventDefault();
+      if (following) return;
+      following = true;
+      let completed = false;
+      const follow = (analyticsResult, analyticsError) => {
+        if (completed) return;
+        completed = true;
+        window.clearTimeout(trialNavigationTimer);
+        if (analyticsError) logError('trial analytics failed');
+        if (!disposed && block.isConnected && !modal?.dataset.closing) {
+          window.location.assign(link.href);
+        }
+      };
+      // Launch's done callback runs after sendEvent; never strand the CTA if analytics stalls.
+      trialNavigationTimer = window.setTimeout(() => {
+        logError('trial analytics timed out');
+        follow();
+      }, 1000);
+      trackEvent('ar_399_free_trial_click', follow);
+    });
     result.append(title, content(config, 'rejected-description', 'entitlement-check-description'), link);
     block.replaceChildren(result);
     block.dataset.state = 'rejected';
