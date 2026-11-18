@@ -1,4 +1,5 @@
 const { devices } = require('@playwright/test');
+const { FIXTURE_BASE_URL } = require('./nala/libs/constants.cjs');
 
 let PROJECT; let ORG; let
   BASE_URLS;
@@ -27,6 +28,12 @@ const config = {
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   workers: process.env.CI ? 7 : 3,
+  webServer: {
+    command: 'node nala/utils/fixture-server.cjs',
+    url: `${FIXTURE_BASE_URL}/test/blocks/entitlement-check/integration.html`,
+    reuseExistingServer: false,
+    timeout: 30000,
+  },
   reporter: process.env.CI
     ? [['github'], ['list'], ['./nala/utils/base-reporter.cjs']]
     : [['html', { outputFolder: 'test-html-results' }], ['list'], ['./nala/utils/base-reporter.cjs']],

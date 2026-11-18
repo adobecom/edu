@@ -11,7 +11,7 @@ test.describe('Demo Block Test Suite', () => {
 
   test(`${features[0].name},${features[0].tags}`, async ({ page, baseURL }) => {
     const { path, data } = features[0];
-    const finalUrl = path.startsWith('http') ? path : `${baseURL}${path}`;
+    const finalUrl = new URL(path, baseURL).href;
     console.info(`[Demo Test] Navigating to: ${finalUrl}`);
     await page.goto(finalUrl);
     await expect(demoBlock.header).toBeVisible();

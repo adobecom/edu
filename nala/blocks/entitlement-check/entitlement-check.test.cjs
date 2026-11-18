@@ -1,5 +1,8 @@
 const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
+const { FIXTURE_BASE_URL } = require('../../libs/constants.cjs');
+
+test.use({ baseURL: FIXTURE_BASE_URL });
 
 const fixture = '/test/blocks/entitlement-check/integration.html';
 const service = /^https:\/\/edu-org(?:-stage)?\.adobe\.io\/v1\/entitlements$/;
@@ -28,7 +31,12 @@ async function captureAnalytics(page) {
     window.entitlementAnalytics = [];
     window.entitlementClicks = [];
     // eslint-disable-next-line no-underscore-dangle
-    window._satellite = { track: (type, payload) => window.entitlementAnalytics.push({ type, payload }) };
+    window._satellite = {
+      track: (type, payload) => {
+        window.entitlementAnalytics.push({ type, payload });
+        queueMicrotask(() => window.captureEntitlementState?.());
+      },
+    };
     document.addEventListener('click', (event) => {
       const control = event.target.closest('[daa-ll]');
       if (control) {
@@ -37,6 +45,7 @@ async function captureAnalytics(page) {
           defaultPrevented: event.defaultPrevented,
         });
       }
+      queueMicrotask(() => window.captureEntitlementState?.());
     });
   });
 }
@@ -49,34 +58,22 @@ async function getAnalytics(page) {
 }
 
 async function captureNavigation(page, onNavigation) {
-  const prefix = 'entitlement-navigation:';
-  page.on('console', (message) => {
-    const value = message.text();
-    if (value.startsWith(prefix)) onNavigation(JSON.parse(value.slice(prefix.length)));
+  await page.exposeBinding('recordEntitlementState', (_, snapshot) => onNavigation(snapshot));
+  await page.addInitScript(() => {
+    // Capture after analytics/click handlers, before navigation can discard the document.
+    window.captureEntitlementState = () => window.recordEntitlementState({
+      state: document.querySelector('.entitlement-check')?.dataset.state,
+      result: Boolean(document.querySelector('.entitlement-check-result')),
+      cta: Boolean(document.querySelector('.entitlement-check-continue')),
+      events: (window.entitlementAnalytics || []).filter(
+        ({ payload }) => {
+          const name = payload?.xdm?.web?.webInteraction?.name;
+          return name?.startsWith('ar_') || name?.startsWith('entitlement-check:');
+        },
+      ),
+      clicks: window.entitlementClicks || [],
+    });
   });
-  await page.addInitScript((marker) => {
-    let destination;
-    window.navigation.addEventListener('navigate', (event) => {
-      destination = event.destination.url;
-    });
-    window.addEventListener('beforeunload', () => {
-      const snapshot = {
-        destination,
-        state: document.querySelector('.entitlement-check')?.dataset.state,
-        result: Boolean(document.querySelector('.entitlement-check-result')),
-        cta: Boolean(document.querySelector('.entitlement-check-continue')),
-        events: (window.entitlementAnalytics || []).filter(
-          ({ payload }) => {
-            const name = payload?.xdm?.web?.webInteraction?.name;
-            return name?.startsWith('ar_') || name?.startsWith('entitlement-check:');
-          },
-        ),
-        clicks: window.entitlementClicks || [],
-      };
-      // eslint-disable-next-line no-console
-      console.info(`${marker}${JSON.stringify(snapshot)}`);
-    });
-  }, prefix);
 }
 
 async function checkAccessibility(page, scope = '.entitlement-check-modal') {
@@ -617,7 +614,7 @@ test('long validation copy remains reachable on a narrow, short viewport', async
         : stageDestination;
       await expect(page).toHaveURL(destination);
       expect(endpoint).toBe(`https://edu-org${env === 'prod' ? '' : '-stage'}.adobe.io/v1/entitlements`);
-      await expect.poll(() => beforeNavigation).toMatchObject({ destination, state: 'form', result: false, cta: false });
+      await expect.poll(() => beforeNavigation).toMatchObject({ state: 'form', result: false, cta: false });
       expect(beforeNavigation.events.map(({ payload }) => payload.xdm.web.webInteraction.name)).toEqual(['ar_eligible']);
     });
   });

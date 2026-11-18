@@ -38,6 +38,24 @@ LOCAL_TEST_LIVE_URL=https://stage--edu--adobecom.aem.live npx playwright test na
 ```
 
 The demo fixture uses the configured base URL and checks the main demo heading.
+Demo and media tests resolve their paths against that URL, with or without a
+trailing slash.
+
+The entitlement-check integration tests always use the local checkout. Playwright
+starts and stops a loopback-only Web Dev Server on port 2001 automatically; keep
+that port available. The tests proxy real Milo libraries and mock eligibility
+responses and destination navigation. No AEM publishing of `test/` is required;
+it remains excluded by `.hlxignore`.
+
+Run the suite against a branch (Chromium by default):
+
+```sh
+npm run nala <branch>
+```
+
+Published-page tests use the selected branch URL; entitlement fixtures use the
+local server regardless of that URL.
+
 CI retains one retry and succeeds when a test recovers. The custom summary counts
 each final test once and reports flaky tests separately from expected passes,
 unexpected failures, and skips; the built-in list/GitHub reporters remain enabled.
