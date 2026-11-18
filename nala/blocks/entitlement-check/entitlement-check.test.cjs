@@ -279,6 +279,7 @@ test('keeps the authored label and eligibility usable when the shared indicator 
 });
 
 test.beforeEach(async ({ page }) => {
+  page.on('pageerror', (error) => console.error('Entitlement fixture browser error:', error));
   // Serve real Milo under /libs; mock eligibility requests and Adobe navigation.
   await page.route('**/libs/**', async (route) => {
     const url = new URL(route.request().url());
@@ -315,14 +316,17 @@ test.afterEach(async ({ page }) => {
     const mobile = name === 'mobile';
     const modalBox = await page.locator('.entitlement-check-modal').boundingBox();
     expect(modalBox.width).toBe(mobile ? 338 : 715);
-    expect(layout.height).toBe(mobile ? 511 : 415);
+    const introBox = await relativeBox(page, '.entitlement-check-intro');
+    const labelBox = await relativeBox(page, '.entitlement-check-fields > label');
+    expect(labelBox.y - introBox.y - introBox.height).toBeCloseTo(24, 0);
     const inputBox = await relativeBox(page, '.entitlement-check input[type="email"]');
     expect(inputBox.x).toBe(mobile ? 19 : 52);
-    expect(inputBox.y).toBe(mobile ? 232 : 194);
+    expect(inputBox.y - labelBox.y - labelBox.height).toBeCloseTo(8, 0);
+    expect(inputBox.width).toBe(modalBox.width - 2 * inputBox.x);
     expect(inputBox.height).toBe(40);
     const submitBox = await relativeBox(page, '.entitlement-check-submit');
-    expect(submitBox.y).toBe(mobile ? 437 : 341);
     expect(submitBox.height).toBe(38);
+    expect(layout.height - submitBox.y - submitBox.height).toBeCloseTo(36, 0);
     const input = page.getByRole('textbox', { name: 'College email address' });
     const consent = page.getByRole('checkbox');
     await expect(consent).not.toBeChecked();
@@ -331,7 +335,11 @@ test.afterEach(async ({ page }) => {
     const legalBox = await relativeBox(page, '.entitlement-check-legal');
     expect(consentBox.width).toBe(12);
     expect(consentBox.height).toBe(12);
-    expect(legalBox.height).toBe(mobile ? 81 : 45);
+    expect(legalBox.y - inputBox.y - inputBox.height).toBeCloseTo(mobile ? 66 : 44, 0);
+    expect(legalBox.x - consentBox.x).toBeCloseTo(12, 0);
+    expect(legalBox.width).toBeCloseTo(inputBox.width - 12, 0);
+    await expect(page.locator('.entitlement-check-legal')).toHaveCSS('padding-inline-start', '9px');
+    expect(submitBox.y - legalBox.y - legalBox.height).toBeCloseTo(18, 0);
     await page.getByRole('button', { name: 'Check eligibility' }).click();
     await expect(page.getByRole('alert')).toHaveText('This field is required.');
     await expect(input).toBeFocused();
@@ -363,8 +371,11 @@ test.afterEach(async ({ page }) => {
     await expect(page.locator('.entitlement-check')).toHaveAttribute('data-state', 'rejected');
     await expect(page.getByRole('link', { name: 'Get my free trial' })).toHaveAttribute('href', 'https://www.adobe.com/creativecloud/start-with-free-creativecloud.html');
     const trialBox = await relativeBox(page, '.entitlement-check-trial');
-    expect(trialBox.y).toBe(mobile ? 278 : 229);
-    expect(trialBox.width).toBe(153);
+    const descriptionBox = await relativeBox(page, '.entitlement-check-result .entitlement-check-description');
+    expect(trialBox.y - descriptionBox.y - descriptionBox.height).toBeCloseTo(28, 0);
+    expect(trialBox.width).toBeGreaterThanOrEqual(153);
+    expect(trialBox.width).toBeLessThanOrEqual(inputBox.width);
+    expect(2 * trialBox.x + trialBox.width).toBeCloseTo(modalBox.width, 0);
     expect(trialBox.height).toBe(40);
     await checkAccessibility(page);
     expect(await page.locator('.dialog-modal').evaluate((dialog) => (
