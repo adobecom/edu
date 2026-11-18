@@ -46,9 +46,8 @@ starts and stops a loopback-only Web Dev Server on port 2001 automatically; keep
 that port available. The tests proxy real Milo libraries and mock eligibility
 responses and destination navigation. No AEM publishing of `test/` is required;
 it remains excluded by `.hlxignore`.
-Responsive checks assert spacing, alignment, containment, and layout stability
-without assuming identical system-font wrapping across operating systems. Native
-email inputs allow a one-pixel browser rendering difference.
+Responsive geometry checks cover overflow and content reachability, not exact
+dimensions, spacing, centering, or layout stability.
 
 Run the suite against a branch (Chromium by default):
 

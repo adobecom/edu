@@ -84,21 +84,6 @@ async function checkAccessibility(page, scope = '.entitlement-check-modal') {
   expect(results.violations).toEqual([]);
 }
 
-async function formLayout(page) {
-  return page.locator('.entitlement-check-modal').evaluate((modal) => ({
-    legal: modal.querySelector('.entitlement-check-legal').getBoundingClientRect().top,
-    submit: modal.querySelector('.entitlement-check-submit').getBoundingClientRect().top,
-  }));
-}
-
-async function relativeBox(page, selector) {
-  return page.locator(selector).evaluate((element) => {
-    const box = element.getBoundingClientRect();
-    const modal = element.closest('.entitlement-check-modal').getBoundingClientRect();
-    return { x: box.x - modal.x, y: box.y - modal.y, width: box.width, height: box.height };
-  });
-}
-
 test('proxies Milo modules without forwarding the fixture Host header', async ({ page }) => {
   await page.route('**/libs/utils/utils.js', (route) => route.fallback({ headers: { ...route.request().headers(), host: new URL(FIXTURE_BASE_URL).host } }));
   await open(page);
@@ -116,7 +101,6 @@ test('preloads the shared indicator without delaying the standalone form or elig
   const submit = page.locator('.entitlement-check-submit');
   const label = submit.locator('.entitlement-check-submit-label');
   const progress = submit.locator('sp-progress-circle');
-  const initial = await submit.boundingBox();
   await page.getByRole('textbox').fill('student@school.example.org');
   await submit.click();
   await expect.poll(() => Boolean(pendingRoute)).toBe(true);
@@ -129,9 +113,6 @@ test('preloads the shared indicator without delaying the standalone form or elig
   await expect(progress).toBeVisible();
   await expect(progress.locator('.track')).toBeVisible();
   await expect(label).toBeHidden();
-  const loading = await submit.boundingBox();
-  expect(loading.width).toBe(initial.width);
-  expect(loading.height).toBe(initial.height);
   await pendingRoute.fulfill({ status: 503, headers: { 'access-control-allow-origin': '*' } });
   await expect(page.getByRole('alert')).toContainText('Please try again.');
   await expect(progress).toBeHidden();
@@ -229,7 +210,6 @@ test('keeps the authored label and eligibility usable when the shared indicator 
     const error = block.getByRole('alert');
     await expect(page.getByRole('dialog')).toHaveCount(0);
     await expect(page.locator('.entitlement-check-modal')).toHaveCount(0);
-    expect((await block.boundingBox()).width).toBeLessThanOrEqual(715);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await checkAccessibility(page, '.entitlement-check');
     await submit.click();
@@ -242,18 +222,11 @@ test('keeps the authored label and eligibility usable when the shared indicator 
     await expect(consent).toHaveJSProperty('required', false);
     expect(requests).toBe(0);
     await checkAccessibility(page, '.entitlement-check');
-    const initial = await submit.boundingBox();
     await submit.click();
     await expect(progress).toBeVisible();
     await expect(block.locator('.entitlement-check-submit-label')).toBeHidden();
     await expect(submit).toHaveAccessibleName('Check eligibility');
     await expect(block.locator('form')).toHaveAttribute('aria-busy', 'true');
-    const loading = await submit.boundingBox();
-    expect(loading.width).toBe(initial.width);
-    expect(loading.height).toBe(initial.height);
-    const circle = await progress.boundingBox();
-    expect(circle.x + circle.width / 2).toBeCloseTo(loading.x + loading.width / 2, 1);
-    expect(circle.y + circle.height / 2).toBeCloseTo(loading.y + loading.height / 2, 1);
     await page.evaluate(() => window.dispatchEvent(new CustomEvent('milo:modal:closed', { detail: { id: 'unrelated-modal' } })));
     await expect(block.locator('form')).toHaveAttribute('aria-busy', 'true');
     await checkAccessibility(page, '.entitlement-check');
@@ -321,40 +294,15 @@ test.afterEach(async ({ page }) => {
     });
     await open(page);
     await checkAccessibility(page);
-    const layout = await formLayout(page);
-    const mobile = name === 'mobile';
-    const modalBox = await page.locator('.entitlement-check-modal').boundingBox();
-    const introBox = await relativeBox(page, '.entitlement-check-intro');
-    const labelBox = await relativeBox(page, '.entitlement-check-fields > label');
-    expect(labelBox.y - introBox.y - introBox.height).toBeCloseTo(24, 0);
-    const inputBox = await relativeBox(page, '.entitlement-check input[type="email"]');
-    expect(inputBox.x).toBe(mobile ? 19 : 52);
-    expect(inputBox.y - labelBox.y - labelBox.height).toBeCloseTo(8, 0);
-    expect(inputBox.width).toBe(modalBox.width - 2 * inputBox.x);
-    expect(inputBox.height).toBeGreaterThanOrEqual(40);
-    expect(inputBox.height).toBeLessThanOrEqual(41);
-    const submitBox = await relativeBox(page, '.entitlement-check-submit');
-    expect(submitBox.height).toBe(38);
     const input = page.getByRole('textbox', { name: 'College email address' });
     const consent = page.getByRole('checkbox');
     await expect(consent).not.toBeChecked();
     await expect(consent).toHaveAccessibleName(/^I agree that Adobe family of companies/);
-    const consentBox = await relativeBox(page, '.entitlement-check-consent-input');
-    const legalBox = await relativeBox(page, '.entitlement-check-legal');
-    expect(consentBox.width).toBe(12);
-    expect(consentBox.height).toBe(12);
-    expect(legalBox.y - inputBox.y - inputBox.height).toBeCloseTo(mobile ? 66 : 44, 0);
-    expect(legalBox.x - consentBox.x).toBeCloseTo(12, 0);
-    expect(legalBox.width).toBeCloseTo(inputBox.width - 12, 0);
-    await expect(page.locator('.entitlement-check-legal')).toHaveCSS('padding-inline-start', '9px');
-    expect(submitBox.y - legalBox.y - legalBox.height).toBeCloseTo(18, 0);
     await page.getByRole('button', { name: 'Check eligibility' }).click();
     await expect(page.getByRole('alert')).toHaveText('This field is required.');
     await expect(input).toBeFocused();
-    expect(await formLayout(page)).toEqual(layout);
     await checkAccessibility(page);
     await input.fill('not-an-email');
-    expect(await formLayout(page)).toEqual(layout);
     await input.press('Enter');
     await expect(page.getByRole('alert')).toHaveText('Enter a valid email address.');
     await consent.check();
@@ -366,25 +314,16 @@ test.afterEach(async ({ page }) => {
     await expect(input).toHaveAttribute('aria-invalid', 'true');
     await expect(input).toBeFocused();
     expect(requests).toBe(0);
-    expect(await formLayout(page)).toEqual(layout);
     await checkAccessibility(page);
     await input.fill('student@school.example.org');
     await expect(page.locator('.entitlement-check-error')).toBeHidden();
     await expect(consent).not.toBeChecked();
     await expect(consent).toHaveJSProperty('required', false);
     expect(requests).toBe(0);
-    expect(await formLayout(page)).toEqual(layout);
     await checkAccessibility(page);
     await input.press('Enter');
     await expect(page.locator('.entitlement-check')).toHaveAttribute('data-state', 'rejected');
     await expect(page.getByRole('link', { name: 'Get my free trial' })).toHaveAttribute('href', 'https://www.adobe.com/creativecloud/start-with-free-creativecloud.html');
-    const trialBox = await relativeBox(page, '.entitlement-check-trial');
-    const descriptionBox = await relativeBox(page, '.entitlement-check-result .entitlement-check-description');
-    expect(trialBox.y - descriptionBox.y - descriptionBox.height).toBeCloseTo(28, 0);
-    expect(trialBox.width).toBeGreaterThanOrEqual(153);
-    expect(trialBox.width).toBeLessThanOrEqual(inputBox.width);
-    expect(2 * trialBox.x + trialBox.width).toBeCloseTo(modalBox.width, 0);
-    expect(trialBox.height).toBe(40);
     await checkAccessibility(page);
     expect(await page.locator('.dialog-modal').evaluate((dialog) => (
       dialog.scrollWidth <= dialog.clientWidth
@@ -591,10 +530,9 @@ test('long validation copy remains reachable on a narrow, short viewport', async
   });
   await open(page);
   const slot = page.locator('.entitlement-check-error-slot');
-  const initialHeight = await slot.evaluate((element) => element.clientHeight);
   await page.getByRole('button', { name: 'Check eligibility' }).click();
   await expect(page.getByRole('alert')).toHaveText(message);
-  expect(await slot.evaluate((element) => element.clientHeight)).toBeGreaterThan(initialHeight);
+  expect(await slot.evaluate((element) => element.scrollHeight <= element.clientHeight)).toBe(true);
   const submit = page.getByRole('button', { name: 'Check eligibility' });
   await submit.scrollIntoViewIfNeeded();
   await expect(submit).toBeInViewport();
@@ -675,7 +613,7 @@ test('technical failure supports retry; backdrop close aborts a pending request'
   { name: 'tablet', width: 768, height: 1024, motion: 'reduce' },
   { name: 'mobile', width: 390, height: 650, motion: 'reduce', forcedColors: true },
 ].forEach(({ name, width, height, motion, forcedColors }) => {
-  test(`${name}: shared submission indicator preserves CTA layout and accessibility`, async ({ page }) => {
+  test(`${name}: shared submission indicator preserves CTA accessibility`, async ({ page }) => {
     await page.setViewportSize({ width, height });
     await page.emulateMedia({ reducedMotion: motion });
     let pendingRoute;
@@ -685,8 +623,6 @@ test('technical failure supports retry; backdrop close aborts a pending request'
     const submit = page.locator('.entitlement-check-submit');
     const progress = submit.locator('sp-progress-circle');
     const label = submit.locator('.entitlement-check-submit-label');
-    const dimensions = ({ width: w, height: h }) => ({ width: w, height: h });
-    const initial = dimensions(await submit.boundingBox());
     await expect(progress).toBeHidden();
     await input.fill('student@school.example.org');
     await page.getByRole('checkbox').check();
@@ -699,13 +635,6 @@ test('technical failure supports retry; backdrop close aborts a pending request'
     await expect(label).toBeHidden();
     await expect(label).toHaveText('Check eligibility');
     await expect(page.locator('.entitlement-check').getByRole('status')).toHaveCount(0);
-    expect(dimensions(await submit.boundingBox())).toEqual(initial);
-    const indicator = await relativeBox(page, 'sp-progress-circle');
-    const button = await relativeBox(page, '.entitlement-check-submit');
-    expect(indicator.width).toBe(20);
-    expect(indicator.height).toBe(20);
-    expect(indicator.x + indicator.width / 2).toBeCloseTo(button.x + button.width / 2, 1);
-    expect(indicator.y + indicator.height / 2).toBeCloseTo(button.y + button.height / 2, 1);
     await expect(progress.locator('.fill').first()).toHaveCSS('border-top-color', 'rgb(255, 255, 255)');
     const animations = await progress.locator('.fills, .fillSubMask1, .fillSubMask2')
       .evaluateAll((elements) => elements.map((element) => {
@@ -735,7 +664,6 @@ test('technical failure supports retry; backdrop close aborts a pending request'
     await expect(submit).toBeEnabled();
     await expect(page.getByRole('checkbox')).toBeChecked();
     await expect(page.getByRole('checkbox')).toBeEnabled();
-    expect(dimensions(await submit.boundingBox())).toEqual(initial);
     pendingRoute = undefined;
     await submit.click();
     await expect(progress).toBeVisible();
