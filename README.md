@@ -46,6 +46,9 @@ starts and stops a loopback-only Web Dev Server on port 2001 automatically; keep
 that port available. The tests proxy real Milo libraries and mock eligibility
 responses and destination navigation. No AEM publishing of `test/` is required;
 it remains excluded by `.hlxignore`.
+Responsive checks assert spacing, alignment, containment, and layout stability
+without assuming identical system-font wrapping across operating systems. Native
+email inputs allow a one-pixel browser rendering difference.
 
 Run the suite against a branch (Chromium by default):
 
@@ -59,6 +62,8 @@ local server regardless of that URL.
 CI retains one retry and succeeds when a test recovers. The custom summary counts
 each final test once and reports flaky tests separately from expected passes,
 unexpected failures, and skips; the built-in list/GitHub reporters remain enabled.
+Failed CI runs retain Playwright traces and error contexts in the
+`nala-test-results` artifact for seven days.
 Reporter regression tests are tagged `@nopr` to keep synthetic summaries out of
 the live PR suite. Run them explicitly:
 

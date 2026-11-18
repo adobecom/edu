@@ -100,6 +100,11 @@ async function relativeBox(page, selector) {
   });
 }
 
+test('proxies Milo modules without forwarding the fixture Host header', async ({ page }) => {
+  await page.route('**/libs/utils/utils.js', (route) => route.fallback({ headers: { ...route.request().headers(), host: new URL(FIXTURE_BASE_URL).host } }));
+  await open(page);
+});
+
 test('preloads the shared indicator without delaying the standalone form or eligibility request', async ({ page }) => {
   let indicatorRoute;
   let pendingRoute;
@@ -283,7 +288,12 @@ test.beforeEach(async ({ page }) => {
   // Serve real Milo under /libs; mock eligibility requests and Adobe navigation.
   await page.route('**/libs/**', async (route) => {
     const url = new URL(route.request().url());
-    const response = await route.fetch({ url: `https://main--milo--adobecom.aem.live${url.pathname}${url.search}` });
+    const headers = { ...route.request().headers() };
+    // Firefox includes the fixture Host header; let fetch generate it for Milo instead.
+    delete headers.host;
+    const upstream = `https://main--milo--adobecom.aem.live${url.pathname}${url.search}`;
+    const response = await route.fetch({ url: upstream, headers });
+    expect(response.ok(), `Milo fixture request returned ${response.status()}: ${upstream}`).toBe(true);
     await route.fulfill({ response });
   });
   await page.route(adobeDestination, (route) => route.fulfill({
@@ -323,7 +333,8 @@ test.afterEach(async ({ page }) => {
     expect(inputBox.x).toBe(mobile ? 19 : 52);
     expect(inputBox.y - labelBox.y - labelBox.height).toBeCloseTo(8, 0);
     expect(inputBox.width).toBe(modalBox.width - 2 * inputBox.x);
-    expect(inputBox.height).toBe(40);
+    expect(inputBox.height).toBeGreaterThanOrEqual(40);
+    expect(inputBox.height).toBeLessThanOrEqual(41);
     const submitBox = await relativeBox(page, '.entitlement-check-submit');
     expect(submitBox.height).toBe(38);
     expect(layout.height - submitBox.y - submitBox.height).toBeCloseTo(36, 0);
