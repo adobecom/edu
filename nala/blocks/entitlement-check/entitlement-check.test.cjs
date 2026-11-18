@@ -458,12 +458,12 @@ test.afterEach(async ({ page }) => {
     await input.fill('student@school.example.org');
     await consent.check();
     await expect.poll(getNames, { timeout: 15000 }).toEqual([
-      'ar_check_click',
+      'ar_check_eligibility_click',
     ]);
     await submit.click();
     await expect(page).toHaveURL(stageBrowserDestination);
     await expect.poll(() => eligibleEvents?.map(({ payload }) => payload.xdm.web.webInteraction.name)).toEqual([
-      'ar_check_click',
+      'ar_check_eligibility_click',
       'ar_eligible',
     ]);
     const events = [...rejectedEvents, ...eligibleEvents];
@@ -511,7 +511,7 @@ test.afterEach(async ({ page }) => {
       else await cta.press('Enter');
       await expect(page).toHaveURL(destination);
       await expect.poll(() => beforeNavigation?.events.map(({ payload }) => payload.xdm.web.webInteraction.name))
-        .toEqual(['ar_not_eligible', 'ar_399_click']);
+        .toEqual(['ar_not_eligible', 'ar_399_free_trial_click']);
       expect(beforeNavigation.clicks).toContainEqual({ label: 'authored-trial', defaultPrevented: false });
     });
   });

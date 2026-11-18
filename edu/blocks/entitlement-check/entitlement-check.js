@@ -219,7 +219,7 @@ export default async function init(block) {
 
   input.addEventListener('input', clearError);
   consent.addEventListener('change', () => {
-    if (consent.checked) trackEvent('ar_check_click');
+    if (consent.checked) trackEvent('ar_check_eligibility_click');
   });
 
   function showRejection() {
@@ -229,7 +229,7 @@ export default async function init(block) {
     title.tabIndex = -1;
     const link = config['rejected-cta'].querySelector('a').cloneNode(true);
     link.className = 'con-button blue entitlement-check-trial';
-    link.addEventListener('click', () => trackEvent('ar_399_click'));
+    link.addEventListener('click', () => trackEvent('ar_399_free_trial_click'));
     result.append(title, content(config, 'rejected-description', 'entitlement-check-description'), link);
     block.replaceChildren(result);
     block.dataset.state = 'rejected';

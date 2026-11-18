@@ -93,8 +93,8 @@ describe('Entitlement check', () => {
     consent.click();
     consent.click();
     expect(analyticsEvents).to.deep.equal([
-      'ar_check_click',
-      'ar_check_click',
+      'ar_check_eligibility_click',
+      'ar_check_eligibility_click',
     ]);
   });
 
@@ -109,7 +109,7 @@ describe('Entitlement check', () => {
     expect(request.calledOnce).to.equal(true);
     await clock.tickAsync(0);
     expect(analyticsEvents).to.deep.equal([
-      'ar_check_click',
+      'ar_check_eligibility_click',
       'ar_not_eligible',
     ]);
   });
@@ -126,9 +126,9 @@ describe('Entitlement check', () => {
     // eslint-disable-next-line no-underscore-dangle
     window._satellite = satellite;
     window.dispatchEvent(new Event('alloy_sendEvent'));
-    expect(analyticsEvents).to.deep.equal(['ar_check_click', 'ar_not_eligible', 'ar_modal_close']);
+    expect(analyticsEvents).to.deep.equal(['ar_check_eligibility_click', 'ar_not_eligible', 'ar_modal_close']);
     window.dispatchEvent(new Event('alloy_sendEvent'));
-    expect(analyticsEvents).to.deep.equal(['ar_check_click', 'ar_not_eligible', 'ar_modal_close']);
+    expect(analyticsEvents).to.deep.equal(['ar_check_eligibility_click', 'ar_not_eligible', 'ar_modal_close']);
     expect(window.lana.log.called).to.equal(false);
   });
 
@@ -408,7 +408,7 @@ describe('Entitlement check', () => {
       expect(link.textContent).to.equal('Explore plans');
       expect(link.getAttribute('daa-ll')).to.equal('authored-trial');
       expect(link.href).to.equal('https://www.adobe.com/creativecloud/start-with-free-creativecloud.html');
-      expect(analyticsEvents).to.deep.equal(['ar_not_eligible', 'ar_399_click']);
+      expect(analyticsEvents).to.deep.equal(['ar_not_eligible', 'ar_399_free_trial_click']);
     });
   });
 
