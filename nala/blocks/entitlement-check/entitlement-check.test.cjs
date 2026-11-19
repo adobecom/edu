@@ -49,7 +49,7 @@ async function captureAnalytics(page) {
 async function getAnalytics(page) {
   return page.evaluate(() => window.entitlementAnalytics.filter(({ payload }) => {
     const name = payload?.xdm?.web?.webInteraction?.name;
-    return name?.startsWith('ar_') || name?.startsWith('entitlement-check:');
+    return name?.startsWith('AR:') || name?.startsWith('entitlement-check:');
   }));
 }
 
@@ -73,7 +73,7 @@ async function captureNavigation(page, onNavigation) {
         events: (window.entitlementAnalytics || []).filter(
           ({ payload }) => {
             const name = payload?.xdm?.web?.webInteraction?.name;
-            return name?.startsWith('ar_') || name?.startsWith('entitlement-check:');
+            return name?.startsWith('AR:') || name?.startsWith('entitlement-check:');
           },
         ),
         clicks: window.entitlementClicks || [],
@@ -411,7 +411,7 @@ test.afterEach(async ({ page }) => {
       await page.getByRole('button', { name: 'Check eligibility' }).click();
       await expect(page.locator('.entitlement-check')).toHaveAttribute('data-state', 'rejected');
       await expect.poll(async () => (await getAnalytics(page)).map(({ payload }) => payload.xdm.web.webInteraction.name))
-        .toEqual(['ar_not_eligible']);
+        .toEqual(['AR:NotEligible']);
     } finally {
       await Promise.all(pendingRoutes.map((route) => route.abort()));
     }
@@ -454,8 +454,8 @@ test.afterEach(async ({ page }) => {
     await submit.click();
     await expect(page.locator('.entitlement-check')).toHaveAttribute('data-state', 'rejected');
     await expect.poll(getNames, { timeout: 15000 }).toEqual([
-      'ar_email_personal_warning',
-      'ar_not_eligible',
+      'AR:PersonalEmailWarning:Error',
+      'AR:NotEligible',
     ]);
     const rejectedEvents = await getEvents();
     status = 'ELIGIBLE';
@@ -463,13 +463,13 @@ test.afterEach(async ({ page }) => {
     await input.fill('student@school.example.org');
     await consent.check();
     await expect.poll(getNames, { timeout: 15000 }).toEqual([
-      'ar_check_eligibility_click',
+      'AR:CheckEligibility:Click',
     ]);
     await submit.click();
     await expect(page).toHaveURL(stageBrowserDestination);
     await expect.poll(() => eligibleEvents?.map(({ payload }) => payload.xdm.web.webInteraction.name)).toEqual([
-      'ar_check_eligibility_click',
-      'ar_eligible',
+      'AR:CheckEligibility:Click',
+      'AR:Eligible',
     ]);
     const events = [...rejectedEvents, ...eligibleEvents];
     events.forEach(({ type, payload }) => {
@@ -526,7 +526,7 @@ test.afterEach(async ({ page }) => {
       expect(beforeNavigation.url).toContain(fixture);
       expect(beforeNavigation.completion).toBe('function');
       expect(beforeNavigation.events.map(({ payload }) => payload?.xdm?.web?.webInteraction?.name)
-        .filter((name) => name?.startsWith('ar_'))).toEqual(['ar_not_eligible', 'ar_399_free_trial_click']);
+        .filter((name) => name?.startsWith('AR:'))).toEqual(['AR:NotEligible', 'AR:FreeTrial:399:Click']);
       expect(beforeNavigation.clicks).toContainEqual({ label: 'authored-trial', defaultPrevented: true });
       await expect(page).toHaveURL(destination);
     });
@@ -561,7 +561,7 @@ test.afterEach(async ({ page }) => {
         });
       }
       await expect(page.getByRole('dialog')).toHaveCount(0);
-      const expected = state === 'rejected' ? ['ar_not_eligible', 'ar_modal_close'] : ['ar_modal_close'];
+      const expected = state === 'rejected' ? ['AR:NotEligible', 'AR:Modal:Close'] : ['AR:Modal:Close'];
       await expect.poll(getNames).toEqual(expected);
       await page.evaluate((id) => window.dispatchEvent(new CustomEvent('milo:modal:closed', { detail: { id } })), modalId);
       expect(await getNames()).toEqual(expected);
@@ -575,7 +575,7 @@ test.afterEach(async ({ page }) => {
         await expect(page.getByRole('textbox', { name: 'College email address' })).toBeVisible();
         await page.keyboard.press('Escape');
         await expect(page.getByRole('dialog')).toHaveCount(0);
-        await expect.poll(getNames).toEqual(['ar_modal_close', 'ar_modal_close']);
+        await expect.poll(getNames).toEqual(['AR:Modal:Close', 'AR:Modal:Close']);
       }
     });
   });
@@ -634,7 +634,7 @@ test('long validation copy remains reachable on a narrow, short viewport', async
       await expect(page).toHaveURL(destination);
       expect(endpoint).toBe(`https://edu-org${env === 'prod' ? '' : '-stage'}.adobe.io/v1/entitlements`);
       await expect.poll(() => beforeNavigation).toMatchObject({ destination, state: 'form', result: false, cta: false });
-      expect(beforeNavigation.events.map(({ payload }) => payload.xdm.web.webInteraction.name)).toEqual(['ar_eligible']);
+      expect(beforeNavigation.events.map(({ payload }) => payload.xdm.web.webInteraction.name)).toEqual(['AR:Eligible']);
     });
   });
 });

@@ -96,8 +96,8 @@ describe('Entitlement check', () => {
     consent.click();
     consent.click();
     expect(analyticsEvents).to.deep.equal([
-      'ar_check_eligibility_click',
-      'ar_check_eligibility_click',
+      'AR:CheckEligibility:Click',
+      'AR:CheckEligibility:Click',
     ]);
   });
 
@@ -112,8 +112,8 @@ describe('Entitlement check', () => {
     expect(request.calledOnce).to.equal(true);
     await clock.tickAsync(0);
     expect(analyticsEvents).to.deep.equal([
-      'ar_check_eligibility_click',
-      'ar_not_eligible',
+      'AR:CheckEligibility:Click',
+      'AR:NotEligible',
     ]);
   });
 
@@ -129,9 +129,9 @@ describe('Entitlement check', () => {
     // eslint-disable-next-line no-underscore-dangle
     window._satellite = satellite;
     window.dispatchEvent(new Event('alloy_sendEvent'));
-    expect(analyticsEvents).to.deep.equal(['ar_check_eligibility_click', 'ar_not_eligible', 'ar_modal_close']);
+    expect(analyticsEvents).to.deep.equal(['AR:CheckEligibility:Click', 'AR:NotEligible', 'AR:Modal:Close']);
     window.dispatchEvent(new Event('alloy_sendEvent'));
-    expect(analyticsEvents).to.deep.equal(['ar_check_eligibility_click', 'ar_not_eligible', 'ar_modal_close']);
+    expect(analyticsEvents).to.deep.equal(['AR:CheckEligibility:Click', 'AR:NotEligible', 'AR:Modal:Close']);
     expect(window.lana.log.called).to.equal(false);
   });
 
@@ -141,7 +141,7 @@ describe('Entitlement check', () => {
     expect(analyticsEvents).to.deep.equal([]);
     await submit('student@gmail.com', false);
     expect(analyticsEvents).to.deep.equal([
-      'ar_email_personal_warning',
+      'AR:PersonalEmailWarning:Error',
     ]);
     expect(request.called).to.equal(false);
   });
@@ -156,7 +156,7 @@ describe('Entitlement check', () => {
     resolve({ ok: true, json: async () => ({ status: 'NOT_ELIGIBLE' }) });
     await clock.tickAsync(0);
     expect(analyticsEvents).to.deep.equal([
-      'ar_not_eligible',
+      'AR:NotEligible',
     ]);
   });
 
@@ -166,7 +166,7 @@ describe('Entitlement check', () => {
     expect(analyticsEvents).to.deep.equal([]);
     await submit();
     expect(analyticsEvents).to.deep.equal([
-      'ar_not_eligible',
+      'AR:NotEligible',
     ]);
   });
 
@@ -223,7 +223,7 @@ describe('Entitlement check', () => {
     expect(request.calledOnce).to.equal(true);
     expect(block.dataset.state).to.equal('rejected');
     expect(analyticsEvents).to.deep.equal([
-      'ar_not_eligible',
+      'AR:NotEligible',
     ]);
   });
 
@@ -410,7 +410,7 @@ describe('Entitlement check', () => {
       expect(link.textContent).to.equal('Explore plans');
       expect(link.getAttribute('daa-ll')).to.equal('authored-trial');
       expect(link.href).to.equal('https://www.adobe.com/creativecloud/start-with-free-creativecloud.html');
-      expect(analyticsEvents).to.deep.equal(['ar_not_eligible', 'ar_399_free_trial_click']);
+      expect(analyticsEvents).to.deep.equal(['AR:NotEligible', 'AR:FreeTrial:399:Click']);
     });
   });
 
@@ -512,7 +512,7 @@ describe('Entitlement check', () => {
       }, { once: true });
       link.dispatchEvent(click);
       expect(track.firstCall.args[1]).not.to.have.property('done');
-      expect(analyticsEvents).to.deep.equal(['ar_not_eligible', 'ar_399_free_trial_click']);
+      expect(analyticsEvents).to.deep.equal(['AR:NotEligible', 'AR:FreeTrial:399:Click']);
       expect(clock.countTimers()).to.equal(0);
     });
   });
@@ -529,11 +529,11 @@ describe('Entitlement check', () => {
     modal.remove();
     close();
     await clock.tickAsync(0);
-    expect(analyticsEvents).to.deep.equal(['ar_modal_close']);
+    expect(analyticsEvents).to.deep.equal(['AR:Modal:Close']);
     await mount();
     close();
     await clock.tickAsync(0);
-    expect(analyticsEvents).to.deep.equal(['ar_modal_close', 'ar_modal_close']);
+    expect(analyticsEvents).to.deep.equal(['AR:Modal:Close', 'AR:Modal:Close']);
   });
 
   it('tracks closing after rejection without adding a close event on page exit', async () => {
@@ -543,7 +543,7 @@ describe('Entitlement check', () => {
     close();
     window.dispatchEvent(new Event('pagehide'));
     await clock.tickAsync(0);
-    expect(analyticsEvents).to.deep.equal(['ar_not_eligible', 'ar_modal_close']);
+    expect(analyticsEvents).to.deep.equal(['AR:NotEligible', 'AR:Modal:Close']);
   });
 
   [true, false].forEach((inModal) => {
@@ -783,7 +783,7 @@ describe('Entitlement check', () => {
     const consent = block.querySelector('[type="checkbox"]');
     consent.dispatchEvent(new Event('change'));
     await clock.tickAsync(0);
-    expect(analyticsEvents).to.deep.equal(['ar_modal_close']);
+    expect(analyticsEvents).to.deep.equal(['AR:Modal:Close']);
   });
 
   it('cleans up on page exit and creates a fresh form on reopen', async () => {

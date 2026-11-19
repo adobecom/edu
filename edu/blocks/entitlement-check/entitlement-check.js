@@ -184,13 +184,13 @@ export default async function init(block) {
 
   function trackEvent(name, done) {
     if (disposed || !block.isConnected
-      || (modal?.dataset.closing && name !== 'ar_modal_close')) return;
+      || (modal?.dataset.closing && name !== 'AR:Modal:Close')) return;
     dispatchAnalytics(name, done);
   }
 
   function dispose(event) {
     if (event?.type === 'milo:modal:closed' && (!modal || event.detail?.id !== modal.id)) return;
-    if (event?.type === 'milo:modal:closed') trackEvent('ar_modal_close');
+    if (event?.type === 'milo:modal:closed') trackEvent('AR:Modal:Close');
     controller?.abort();
     window.clearTimeout(requestTimer);
     window.clearTimeout(trialNavigationTimer);
@@ -223,7 +223,7 @@ export default async function init(block) {
 
   input.addEventListener('input', clearError);
   consent.addEventListener('change', () => {
-    if (consent.checked) trackEvent('ar_check_eligibility_click');
+    if (consent.checked) trackEvent('AR:CheckEligibility:Click');
   });
 
   function showRejection() {
@@ -239,7 +239,7 @@ export default async function init(block) {
         || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey
         || (link.target && link.target.toLowerCase() !== '_self')
         || link.hasAttribute('download')) {
-        trackEvent('ar_399_free_trial_click');
+        trackEvent('AR:FreeTrial:399:Click');
         return;
       }
       event.preventDefault();
@@ -260,7 +260,7 @@ export default async function init(block) {
         logError('trial analytics timed out');
         follow();
       }, 1000);
-      trackEvent('ar_399_free_trial_click', follow);
+      trackEvent('AR:FreeTrial:399:Click', follow);
     });
     result.append(title, content(config, 'rejected-description', 'entitlement-check-description'), link);
     block.replaceChildren(result);
@@ -282,7 +282,7 @@ export default async function init(block) {
     const domain = email.slice(email.lastIndexOf('@') + 1).toLowerCase();
     if (PERSONAL_EMAIL_DOMAINS.has(domain)) {
       showError(personalEmailError, input);
-      trackEvent('ar_email_personal_warning');
+      trackEvent('AR:PersonalEmailWarning:Error');
       return;
     }
     clearError();
@@ -326,7 +326,7 @@ export default async function init(block) {
     }
     if (disposed || !block.isConnected || modal?.dataset.closing) return;
     const eligible = ['HAS_ACCESS', 'ELIGIBLE'].includes(eligibilityStatus);
-    trackEvent(eligible ? 'ar_eligible' : 'ar_not_eligible');
+    trackEvent(eligible ? 'AR:Eligible' : 'AR:NotEligible');
     const modalLabel = modal?.getAttribute('aria-label') ?? null;
     try {
       if (eligible) {
