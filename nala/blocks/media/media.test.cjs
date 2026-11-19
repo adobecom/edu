@@ -11,7 +11,7 @@ test.describe('MediaBlock Test Suite', () => {
   // Test Id : 0 : @media-small-checklist-static-links-bio-con-block-media-reverse-mobile
   test(`[Test Id - ${features[0].tcid}] ${features[0].name} ${features[0].tags}`, async ({ page, baseURL }) => {
     const { data } = features[0];
-    const testUrl = `${baseURL}${features[0].path}`;
+    const testUrl = new URL(features[0].path, baseURL).href;
     const block = new MediaBlock(page, features[0].selector);
     console.info(`[Test Page]: ${testUrl}`);
 

@@ -1,5 +1,4 @@
 .dialog-modal.entitlement-check-modal {
-  width: 338px;
   max-width: calc(100% - 32px);
   border-radius: 16px;
 }

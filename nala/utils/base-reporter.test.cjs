@@ -18,13 +18,13 @@ function testCase(outcome, statuses, expectedStatus = 'passed') {
   };
 }
 
-async function report(tests) {
+async function report(tests, baseURL = 'https://stage--edu--adobecom.aem.live') {
   const reporter = new BaseReporter();
   reporter.onBegin({
     projects: [{
       name: 'edu-live-chromium',
       use: {
-        baseURL: 'https://stage--edu--adobecom.aem.live',
+        baseURL,
         defaultBrowserType: 'chromium',
       },
     }],
@@ -34,6 +34,35 @@ async function report(tests) {
 }
 
 test.describe('Base reporter final outcomes @nopr', () => {
+  test('reports untagged titles without dropping results or crashing the summary', async () => {
+    const untagged = testCase('unexpected', ['failed']);
+    untagged.title = 'modal: eligibility redirects immediately';
+    const reporter = await report([untagged, testCase('expected', ['passed'])]);
+
+    expect(reporter.results).toHaveLength(2);
+    expect(reporter.failedTests).toBe(1);
+    expect(reporter.passedTests).toBe(1);
+    expect(reporter.results[0]).toMatchObject({
+      name: untagged.title,
+      tags: [],
+      status: 'failed',
+    });
+    expect(reporter.results[1]).toMatchObject({ name: 'reporter', tags: ['nopr'] });
+  });
+
+  test('extracts branch metadata from a base URL with a trailing slash', async () => {
+    const reporter = await report(
+      [testCase('expected', ['passed'])],
+      'https://feature--edu--adobecom.aem.live/',
+    );
+    expect(reporter.results[0]).toMatchObject({ branch: 'feature', repo: 'edu' });
+  });
+
+  test('identifies the loopback fixture server as local', async () => {
+    const reporter = await report([testCase('expected', ['passed'])], 'http://127.0.0.1:2001');
+    expect(reporter.results[0]).toMatchObject({ branch: 'local', repo: 'local' });
+  });
+
   test('reports five expected and one flaky test without counting retries as passes', async () => {
     const tests = Array.from({ length: 5 }, () => testCase('expected', ['passed']));
     tests.push(testCase('flaky', ['failed', 'passed']));
