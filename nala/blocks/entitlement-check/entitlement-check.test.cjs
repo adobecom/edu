@@ -7,7 +7,8 @@ test.use({ baseURL: FIXTURE_BASE_URL });
 const fixture = '/test/blocks/entitlement-check/integration.html';
 const service = /^https:\/\/edu-org(?:-stage)?\.adobe\.io\/v1\/entitlements$/;
 const adobeDestination = /^https:\/\/www\.(?:stage\.)?adobe\.com\/home\/a\//;
-const stageDestination = 'https://www.stage.adobe.com/home/a/school.example.org?pa_code=PA-2300';
+const stageDestination = 'https://www.stage.adobe.com/home/a/school.example.org'
+  + '?assign_pac=PA-2300&sdid=XFWLH43Y';
 const stageBrowserDestination = stageDestination;
 const progressModule = '**/libs/features/spectrum-web-components/dist/progress-circle.js';
 
@@ -567,7 +568,7 @@ test('long validation copy remains reachable on a narrow, short viewport', async
       await expect(page.getByRole('checkbox')).not.toBeChecked();
       await page.getByRole('textbox', { name: 'College email address' }).press('Enter');
       const destination = env === 'prod'
-        ? 'https://www.adobe.com/home/a/school.example.org?pa_code=PA-2300'
+        ? 'https://www.adobe.com/home/a/school.example.org?assign_pac=PA-2300&sdid=XFWLH43Y'
         : stageDestination;
       await expect(page).toHaveURL(destination);
       expect(endpoint).toBe(`https://edu-org${env === 'prod' ? '' : '-stage'}.adobe.io/v1/entitlements`);

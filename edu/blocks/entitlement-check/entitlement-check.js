@@ -298,7 +298,9 @@ export default async function init(block) {
     const modalLabel = modal?.getAttribute('aria-label') ?? null;
     try {
       if (eligible) {
-        window.location.assign(`${redirectHost}/home/a/${encodeURIComponent(domain)}?pa_code=PA-2300`);
+        window.location.assign(
+          `${redirectHost}/home/a/${encodeURIComponent(domain)}?assign_pac=PA-2300&sdid=XFWLH43Y`,
+        );
         dispose();
       } else {
         showRejection();
