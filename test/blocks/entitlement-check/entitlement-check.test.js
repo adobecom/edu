@@ -20,6 +20,7 @@ describe('Entitlement check', () => {
   let originalLana;
   let originalSatellite;
   let satellite;
+  let originalUrl;
 
   async function mount(attached = true, markup = fixture, inModal = true) {
     modal = document.createElement('div');
@@ -43,6 +44,7 @@ describe('Entitlement check', () => {
   }
 
   beforeEach(async () => {
+    originalUrl = window.location.href;
     analyticsEvents.length = 0;
     clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     request = sinon.stub(window, 'fetch').resolves({ ok: true, json: async () => ({ status: 'NOT_ELIGIBLE' }) });
@@ -74,6 +76,7 @@ describe('Entitlement check', () => {
     window.lana = originalLana;
     // eslint-disable-next-line no-underscore-dangle
     window._satellite = originalSatellite;
+    window.history.replaceState(null, '', originalUrl);
   });
 
   it('does not track email input', async () => {
@@ -93,8 +96,8 @@ describe('Entitlement check', () => {
     consent.click();
     consent.click();
     expect(analyticsEvents).to.deep.equal([
-      'ar_check_click',
-      'ar_check_click',
+      'AR:CheckEligibility:Click',
+      'AR:CheckEligibility:Click',
     ]);
   });
 
@@ -109,8 +112,8 @@ describe('Entitlement check', () => {
     expect(request.calledOnce).to.equal(true);
     await clock.tickAsync(0);
     expect(analyticsEvents).to.deep.equal([
-      'ar_check_click',
-      'ar_not_eligible',
+      'AR:CheckEligibility:Click',
+      'AR:NotEligible',
     ]);
   });
 
@@ -126,9 +129,9 @@ describe('Entitlement check', () => {
     // eslint-disable-next-line no-underscore-dangle
     window._satellite = satellite;
     window.dispatchEvent(new Event('alloy_sendEvent'));
-    expect(analyticsEvents).to.deep.equal(['ar_check_click', 'ar_not_eligible', 'ar_modal_close']);
+    expect(analyticsEvents).to.deep.equal(['AR:CheckEligibility:Click', 'AR:NotEligible', 'AR:Modal:Close']);
     window.dispatchEvent(new Event('alloy_sendEvent'));
-    expect(analyticsEvents).to.deep.equal(['ar_check_click', 'ar_not_eligible', 'ar_modal_close']);
+    expect(analyticsEvents).to.deep.equal(['AR:CheckEligibility:Click', 'AR:NotEligible', 'AR:Modal:Close']);
     expect(window.lana.log.called).to.equal(false);
   });
 
@@ -138,7 +141,7 @@ describe('Entitlement check', () => {
     expect(analyticsEvents).to.deep.equal([]);
     await submit('student@gmail.com', false);
     expect(analyticsEvents).to.deep.equal([
-      'ar_email_personal_warning',
+      'AR:PersonalEmailWarning:Error',
     ]);
     expect(request.called).to.equal(false);
   });
@@ -153,7 +156,7 @@ describe('Entitlement check', () => {
     resolve({ ok: true, json: async () => ({ status: 'NOT_ELIGIBLE' }) });
     await clock.tickAsync(0);
     expect(analyticsEvents).to.deep.equal([
-      'ar_not_eligible',
+      'AR:NotEligible',
     ]);
   });
 
@@ -163,7 +166,7 @@ describe('Entitlement check', () => {
     expect(analyticsEvents).to.deep.equal([]);
     await submit();
     expect(analyticsEvents).to.deep.equal([
-      'ar_not_eligible',
+      'AR:NotEligible',
     ]);
   });
 
@@ -220,7 +223,7 @@ describe('Entitlement check', () => {
     expect(request.calledOnce).to.equal(true);
     expect(block.dataset.state).to.equal('rejected');
     expect(analyticsEvents).to.deep.equal([
-      'ar_not_eligible',
+      'AR:NotEligible',
     ]);
   });
 
@@ -389,7 +392,7 @@ describe('Entitlement check', () => {
   });
 
   [true, false].forEach((inModal) => {
-    it(`tracks the rejected CTA without preventing default or bubbling ${inModal ? 'in a modal' : 'inline'}`, async () => {
+    it(`defers rejected CTA navigation without stopping bubbling ${inModal ? 'in a modal' : 'inline'}`, async () => {
       close();
       modal.remove();
       await clock.tickAsync(0);
@@ -398,8 +401,7 @@ describe('Entitlement check', () => {
       await submit();
       const link = block.querySelector('.entitlement-check-trial');
       const click = sinon.spy((event) => {
-        expect(event.defaultPrevented).to.equal(false);
-        event.preventDefault();
+        expect(event.defaultPrevented).to.equal(true);
       });
       modal.addEventListener('click', click, { once: true });
       link.click();
@@ -408,7 +410,148 @@ describe('Entitlement check', () => {
       expect(link.textContent).to.equal('Explore plans');
       expect(link.getAttribute('daa-ll')).to.equal('authored-trial');
       expect(link.href).to.equal('https://www.adobe.com/creativecloud/start-with-free-creativecloud.html');
-      expect(analyticsEvents).to.deep.equal(['ar_not_eligible', 'ar_399_click']);
+      expect(analyticsEvents).to.deep.equal(['AR:NotEligible', 'AR:FreeTrial:399:Click']);
+    });
+  });
+
+  it('navigates only after trial analytics completes and ignores duplicate clicks and callbacks', async () => {
+    await submit();
+    const link = block.querySelector('.entitlement-check-trial');
+    link.href = '#entitlement-trial';
+    const track = sinon.spy(satellite, 'track');
+    link.click();
+    link.click();
+    expect(track.calledOnce).to.equal(true);
+    expect(window.location.href).to.equal(originalUrl);
+    const { done } = track.firstCall.args[1];
+    expect(done).to.be.a('function');
+    done();
+    expect(window.location.hash).to.equal('#entitlement-trial');
+    expect(clock.countTimers()).to.equal(0);
+    window.history.replaceState(null, '', originalUrl);
+    done();
+    expect(window.location.href).to.equal(originalUrl);
+  });
+
+  it('allows the trial CTA to navigate again after a cached Back restoration', async () => {
+    await submit();
+    const link = block.querySelector('.entitlement-check-trial');
+    link.href = '#entitlement-trial';
+    const track = sinon.spy(satellite, 'track');
+    link.click();
+    track.firstCall.args[1].done();
+    expect(window.location.hash).to.equal('#entitlement-trial');
+    window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true }));
+    window.history.replaceState(null, '', originalUrl);
+    window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+    link.click();
+    expect(track.callCount).to.equal(2);
+    expect(window.location.href).to.equal(originalUrl);
+    track.secondCall.args[1].done();
+    expect(window.location.hash).to.equal('#entitlement-trial');
+    expect(clock.countTimers()).to.equal(0);
+  });
+
+  it('ignores a pre-cache trial callback without cancelling a new navigation attempt', async () => {
+    await submit();
+    const link = block.querySelector('.entitlement-check-trial');
+    link.href = '#entitlement-trial';
+    const track = sinon.spy(satellite, 'track');
+    link.click();
+    const previousDone = track.firstCall.args[1].done;
+    window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true }));
+    window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+    link.click();
+    expect(track.callCount).to.equal(2);
+    previousDone();
+    expect(window.location.href).to.equal(originalUrl);
+    expect(clock.countTimers()).to.equal(1);
+    track.secondCall.args[1].done();
+    expect(window.location.hash).to.equal('#entitlement-trial');
+    expect(clock.countTimers()).to.equal(0);
+  });
+
+  it('logs a stalled trial analytics event and navigates after the bounded timeout', async () => {
+    await submit();
+    const link = block.querySelector('.entitlement-check-trial');
+    link.href = '#entitlement-trial';
+    link.click();
+    await clock.tickAsync(999);
+    expect(window.location.href).to.equal(originalUrl);
+    await clock.tickAsync(1);
+    expect(window.location.hash).to.equal('#entitlement-trial');
+    expect(window.lana.log.calledWithMatch('Entitlement check: trial analytics timed out')).to.equal(true);
+  });
+
+  it('keeps the trial CTA usable when the SDK is unavailable', async () => {
+    await submit();
+    const link = block.querySelector('.entitlement-check-trial');
+    link.href = '#entitlement-trial';
+    // eslint-disable-next-line no-underscore-dangle
+    window._satellite = undefined;
+    link.click();
+    await clock.tickAsync(1000);
+    expect(window.location.hash).to.equal('#entitlement-trial');
+    expect(window.lana.log.calledWithMatch('Entitlement check: trial analytics timed out')).to.equal(true);
+  });
+
+  it('logs a trial analytics failure and still navigates', async () => {
+    await submit();
+    const link = block.querySelector('.entitlement-check-trial');
+    link.href = '#entitlement-trial';
+    const track = sinon.spy(satellite, 'track');
+    link.click();
+    track.firstCall.args[1].done(undefined, new Error('SDK failed'));
+    expect(window.location.hash).to.equal('#entitlement-trial');
+    expect(window.lana.log.calledWithMatch('Entitlement check: trial analytics failed')).to.equal(true);
+    expect(clock.countTimers()).to.equal(0);
+  });
+
+  it('keeps the trial CTA usable when analytics dispatch throws', async () => {
+    await submit();
+    const link = block.querySelector('.entitlement-check-trial');
+    link.href = '#entitlement-trial';
+    sinon.stub(satellite, 'track').throws(new Error('SDK failed'));
+    link.click();
+    expect(window.location.hash).to.equal('#entitlement-trial');
+    expect(window.lana.log.calledWithMatch('Entitlement check: analytics event failed')).to.equal(true);
+    expect(clock.countTimers()).to.equal(0);
+  });
+
+  it('cancels pending trial navigation when the modal closes', async () => {
+    await submit();
+    const track = sinon.spy(satellite, 'track');
+    block.querySelector('.entitlement-check-trial').click();
+    const { done } = track.firstCall.args[1];
+    close();
+    done();
+    await clock.tickAsync(1000);
+    expect(window.location.href).to.equal(originalUrl);
+    expect(clock.countTimers()).to.equal(0);
+    expect(window.lana.log.called).to.equal(false);
+  });
+
+  ['modified', 'new-tab', 'download', 'prevented'].forEach((activation) => {
+    it(`preserves native ${activation} trial link behavior`, async () => {
+      await submit();
+      const link = block.querySelector('.entitlement-check-trial');
+      if (activation === 'new-tab') link.target = '_blank';
+      if (activation === 'download') link.setAttribute('download', '');
+      const track = sinon.spy(satellite, 'track');
+      const click = new MouseEvent('click', {
+        bubbles: true,
+        cancelable: true,
+        ctrlKey: activation === 'modified',
+      });
+      if (activation === 'prevented') click.preventDefault();
+      modal.addEventListener('click', (event) => {
+        expect(event.defaultPrevented).to.equal(activation === 'prevented');
+        event.preventDefault();
+      }, { once: true });
+      link.dispatchEvent(click);
+      expect(track.firstCall.args[1]).not.to.have.property('done');
+      expect(analyticsEvents).to.deep.equal(['AR:NotEligible', 'AR:FreeTrial:399:Click']);
+      expect(clock.countTimers()).to.equal(0);
     });
   });
 
@@ -424,11 +567,11 @@ describe('Entitlement check', () => {
     modal.remove();
     close();
     await clock.tickAsync(0);
-    expect(analyticsEvents).to.deep.equal(['ar_modal_close']);
+    expect(analyticsEvents).to.deep.equal(['AR:Modal:Close']);
     await mount();
     close();
     await clock.tickAsync(0);
-    expect(analyticsEvents).to.deep.equal(['ar_modal_close', 'ar_modal_close']);
+    expect(analyticsEvents).to.deep.equal(['AR:Modal:Close', 'AR:Modal:Close']);
   });
 
   it('tracks closing after rejection without adding a close event on page exit', async () => {
@@ -438,7 +581,7 @@ describe('Entitlement check', () => {
     close();
     window.dispatchEvent(new Event('pagehide'));
     await clock.tickAsync(0);
-    expect(analyticsEvents).to.deep.equal(['ar_not_eligible', 'ar_modal_close']);
+    expect(analyticsEvents).to.deep.equal(['AR:NotEligible', 'AR:Modal:Close']);
   });
 
   [true, false].forEach((inModal) => {
@@ -678,7 +821,7 @@ describe('Entitlement check', () => {
     const consent = block.querySelector('[type="checkbox"]');
     consent.dispatchEvent(new Event('change'));
     await clock.tickAsync(0);
-    expect(analyticsEvents).to.deep.equal(['ar_modal_close']);
+    expect(analyticsEvents).to.deep.equal(['AR:Modal:Close']);
   });
 
   it('cleans up on page exit and creates a fresh form on reopen', async () => {

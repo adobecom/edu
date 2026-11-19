@@ -23,10 +23,10 @@ function logError(message) {
   window.lana?.log(`Entitlement check: ${message}`, { tags: 'entitlement-check', severity: 'error' });
 }
 
-function dispatchAnalytics(name) {
+function dispatchAnalytics(name, done) {
   const { _satellite: satellite } = window;
   if (!satellite?.track) {
-    window.addEventListener('alloy_sendEvent', () => dispatchAnalytics(name), { once: true });
+    window.addEventListener('alloy_sendEvent', () => dispatchAnalytics(name, done), { once: true });
     return;
   }
   try {
@@ -34,6 +34,7 @@ function dispatchAnalytics(name) {
     const digitalData = { primaryEvent: { eventInfo: { eventName: name } } };
     satellite.track('event', {
       documentUnloading: true,
+      ...(done && { done }),
       xdm: {
         eventType: 'web.webinteraction.linkClicks',
         web: {
@@ -48,6 +49,7 @@ function dispatchAnalytics(name) {
     });
   } catch (e) {
     logError('analytics event failed');
+    done?.();
   }
 }
 
@@ -178,19 +180,22 @@ export default async function init(block) {
   let progressReady = false;
   let controller;
   let requestTimer;
+  let trialNavigationTimer;
+  let cancelTrialNavigation;
 
-  function trackEvent(name) {
+  function trackEvent(name, done) {
     if (disposed || !block.isConnected
-      || (modal?.dataset.closing && name !== 'ar_modal_close')) return;
-    dispatchAnalytics(name);
+      || (modal?.dataset.closing && name !== 'AR:Modal:Close')) return;
+    dispatchAnalytics(name, done);
   }
 
   function dispose(event) {
     if (event?.type === 'milo:modal:closed' && (!modal || event.detail?.id !== modal.id)) return;
-    if (event?.type === 'milo:modal:closed') trackEvent('ar_modal_close');
+    if (event?.type === 'milo:modal:closed') trackEvent('AR:Modal:Close');
     controller?.abort();
     window.clearTimeout(requestTimer);
-    // A cached page can be restored; leave its form usable for another attempt.
+    cancelTrialNavigation?.();
+    // A cached page can be restored; leave its controls usable for another attempt.
     if (event?.type === 'pagehide' && event.persisted) return;
     disposed = true;
     // Milo broadcasts before removing the dialog, so scope cleanup to this instance.
@@ -219,7 +224,7 @@ export default async function init(block) {
 
   input.addEventListener('input', clearError);
   consent.addEventListener('change', () => {
-    if (consent.checked) trackEvent('ar_check_click');
+    if (consent.checked) trackEvent('AR:CheckEligibility:Click');
   });
 
   function showRejection() {
@@ -229,7 +234,41 @@ export default async function init(block) {
     title.tabIndex = -1;
     const link = config['rejected-cta'].querySelector('a').cloneNode(true);
     link.className = 'con-button blue entitlement-check-trial';
-    link.addEventListener('click', () => trackEvent('ar_399_click'));
+    let following = false;
+    link.addEventListener('click', (event) => {
+      if (event.defaultPrevented || event.button !== 0
+        || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey
+        || (link.target && link.target.toLowerCase() !== '_self')
+        || link.hasAttribute('download')) {
+        trackEvent('AR:FreeTrial:399:Click');
+        return;
+      }
+      event.preventDefault();
+      if (following) return;
+      following = true;
+      let completed = false;
+      const follow = (analyticsResult, analyticsError) => {
+        if (completed) return;
+        completed = true;
+        window.clearTimeout(trialNavigationTimer);
+        if (analyticsError) logError('trial analytics failed');
+        if (!disposed && block.isConnected && !modal?.dataset.closing) {
+          window.location.assign(link.href);
+        }
+      };
+      cancelTrialNavigation = () => {
+        completed = true;
+        following = false;
+        window.clearTimeout(trialNavigationTimer);
+        cancelTrialNavigation = undefined;
+      };
+      // Launch's done callback runs after sendEvent; never strand the CTA if analytics stalls.
+      trialNavigationTimer = window.setTimeout(() => {
+        logError('trial analytics timed out');
+        follow();
+      }, 1000);
+      trackEvent('AR:FreeTrial:399:Click', follow);
+    });
     result.append(title, content(config, 'rejected-description', 'entitlement-check-description'), link);
     block.replaceChildren(result);
     block.dataset.state = 'rejected';
@@ -250,7 +289,7 @@ export default async function init(block) {
     const domain = email.slice(email.lastIndexOf('@') + 1).toLowerCase();
     if (PERSONAL_EMAIL_DOMAINS.has(domain)) {
       showError(personalEmailError, input);
-      trackEvent('ar_email_personal_warning');
+      trackEvent('AR:PersonalEmailWarning:Error');
       return;
     }
     clearError();
@@ -294,7 +333,7 @@ export default async function init(block) {
     }
     if (disposed || !block.isConnected || modal?.dataset.closing) return;
     const eligible = ['HAS_ACCESS', 'ELIGIBLE'].includes(eligibilityStatus);
-    trackEvent(eligible ? 'ar_eligible' : 'ar_not_eligible');
+    trackEvent(eligible ? 'AR:Eligible' : 'AR:NotEligible');
     const modalLabel = modal?.getAttribute('aria-label') ?? null;
     try {
       if (eligible) {
