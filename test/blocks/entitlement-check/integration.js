@@ -3,7 +3,7 @@ import { setLibs } from './mocks/scripts.js';
 const libs = '/libs';
 setLibs(libs);
 const { setConfig, loadArea } = await import(`${libs}/utils/utils.js`);
-setConfig({ codeRoot: '/edu', miloLibs: libs });
+setConfig({ codeRoot: '/edu', miloLibs: libs, clientEnv: 'stage' });
 if (new URLSearchParams(window.location.search).has('inline')) {
   const response = await fetch('/test/blocks/entitlement-check/fragment.plain.html');
   if (!response.ok) throw new Error('Unable to load inline entitlement-check fixture.');

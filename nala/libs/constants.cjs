@@ -2,6 +2,7 @@
 
 const DEFAULT_REPO = 'edu';
 const DEFAULT_ORG = 'adobecom';
+const FIXTURE_BASE_URL = 'http://127.0.0.1:2001';
 
 // Default fallback BASE_URLS (not project-specific)
 const BASE_URLS = {
@@ -26,6 +27,7 @@ const USER_AGENT_MOBILE_SAFARI = 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like M
 module.exports = {
   DEFAULT_REPO,
   DEFAULT_ORG,
+  FIXTURE_BASE_URL,
   BASE_URLS,
   getBranchUrl,
   A11Y_TAGS,
