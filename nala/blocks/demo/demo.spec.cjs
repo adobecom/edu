@@ -5,7 +5,7 @@ module.exports = {
       tcid: '0',
       name: '@demo-basic',
       // ✅ Default path to let you run the demo test after onboarding
-      path: 'https://main--edu--adobecom.aem.live/drafts/nala/demo/demo-page',
+      path: '/drafts/nala/demo/demo-page',
       // 💡 Replace with your project-specific test page after onboarding
       // Example: path: '/drafts/nala/blocks/accordion/accordion-page',
       data: { headerText: 'Nala Demo Test' },
