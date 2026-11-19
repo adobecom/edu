@@ -433,6 +433,44 @@ describe('Entitlement check', () => {
     expect(window.location.href).to.equal(originalUrl);
   });
 
+  it('allows the trial CTA to navigate again after a cached Back restoration', async () => {
+    await submit();
+    const link = block.querySelector('.entitlement-check-trial');
+    link.href = '#entitlement-trial';
+    const track = sinon.spy(satellite, 'track');
+    link.click();
+    track.firstCall.args[1].done();
+    expect(window.location.hash).to.equal('#entitlement-trial');
+    window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true }));
+    window.history.replaceState(null, '', originalUrl);
+    window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+    link.click();
+    expect(track.callCount).to.equal(2);
+    expect(window.location.href).to.equal(originalUrl);
+    track.secondCall.args[1].done();
+    expect(window.location.hash).to.equal('#entitlement-trial');
+    expect(clock.countTimers()).to.equal(0);
+  });
+
+  it('ignores a pre-cache trial callback without cancelling a new navigation attempt', async () => {
+    await submit();
+    const link = block.querySelector('.entitlement-check-trial');
+    link.href = '#entitlement-trial';
+    const track = sinon.spy(satellite, 'track');
+    link.click();
+    const previousDone = track.firstCall.args[1].done;
+    window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true }));
+    window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+    link.click();
+    expect(track.callCount).to.equal(2);
+    previousDone();
+    expect(window.location.href).to.equal(originalUrl);
+    expect(clock.countTimers()).to.equal(1);
+    track.secondCall.args[1].done();
+    expect(window.location.hash).to.equal('#entitlement-trial');
+    expect(clock.countTimers()).to.equal(0);
+  });
+
   it('logs a stalled trial analytics event and navigates after the bounded timeout', async () => {
     await submit();
     const link = block.querySelector('.entitlement-check-trial');

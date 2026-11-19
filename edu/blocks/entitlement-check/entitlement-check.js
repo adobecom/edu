@@ -181,6 +181,7 @@ export default async function init(block) {
   let controller;
   let requestTimer;
   let trialNavigationTimer;
+  let cancelTrialNavigation;
 
   function trackEvent(name, done) {
     if (disposed || !block.isConnected
@@ -193,8 +194,8 @@ export default async function init(block) {
     if (event?.type === 'milo:modal:closed') trackEvent('AR:Modal:Close');
     controller?.abort();
     window.clearTimeout(requestTimer);
-    window.clearTimeout(trialNavigationTimer);
-    // A cached page can be restored; leave its form usable for another attempt.
+    cancelTrialNavigation?.();
+    // A cached page can be restored; leave its controls usable for another attempt.
     if (event?.type === 'pagehide' && event.persisted) return;
     disposed = true;
     // Milo broadcasts before removing the dialog, so scope cleanup to this instance.
@@ -254,6 +255,12 @@ export default async function init(block) {
         if (!disposed && block.isConnected && !modal?.dataset.closing) {
           window.location.assign(link.href);
         }
+      };
+      cancelTrialNavigation = () => {
+        completed = true;
+        following = false;
+        window.clearTimeout(trialNavigationTimer);
+        cancelTrialNavigation = undefined;
       };
       // Launch's done callback runs after sendEvent; never strand the CTA if analytics stalls.
       trialNavigationTimer = window.setTimeout(() => {
