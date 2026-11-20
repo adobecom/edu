@@ -64,10 +64,9 @@ echo "Run Command : npx playwright test ${TAGS} ${EXCLUDE_TAGS} ${REPORTER}"
 echo -e "\n"
 echo "*******************************"
 
-# Navigate to the GitHub Action path and install dependencies
+# Navigate to the GitHub Action path. Dependencies and browsers are provided
+# by the calling workflow (npm ci step + Playwright container image).
 cd "$GITHUB_ACTION_PATH" || exit
-npm ci
-npx playwright install --with-deps
 
 # Run Playwright tests on the specific projects using root-level playwright.config.js
 # This will be changed later
@@ -79,5 +78,5 @@ if [ $EXIT_STATUS -ne 0 ]; then
   echo "Some tests failed. Exiting with error."
   exit $EXIT_STATUS
 else
-  echo "All tests passed successfully."
+  echo "Nala completed successfully (retry recovery is allowed; see the report for flaky tests)."
 fi
