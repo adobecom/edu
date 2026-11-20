@@ -105,6 +105,12 @@ const CONFIG = {
   locales: {
     // Americas
     ar: { ietf: 'es-AR', tk: 'oln4yqj.css' },
+    ara: {
+      ietf: 'ar',
+      tk: 'nwq1mna.css',
+      dir: 'rtl',
+      regions: { mena_ar: { prefix: '/mena_ar', ietf: 'ar' } },
+    },
     br: { ietf: 'pt-BR', tk: 'inq1xob.css' },
     ca: { ietf: 'en-CA', tk: 'pps7abe.css', base: '' },
     ca_fr: { ietf: 'fr-CA', tk: 'vrk5vyv.css', base: 'fr' },
@@ -113,7 +119,14 @@ const CONFIG = {
     la: { ietf: 'es-LA', tk: 'oln4yqj.css' },
     mx: { ietf: 'es-MX', tk: 'oln4yqj.css' },
     pe: { ietf: 'es-PE', tk: 'oln4yqj.css' },
-    '': { ietf: 'en-US', tk: 'hah7vzn.css' },
+    '': {
+      ietf: 'en-US',
+      tk: 'hah7vzn.css',
+      regions: {
+        africa: { prefix: '/africa', ietf: 'en' },
+        mena_en: { prefix: '/mena_en', ietf: 'en' },
+      },
+    },
     // EMEA
     africa: { ietf: 'en', tk: 'pps7abe.css', base: '' },
     be_fr: { ietf: 'fr-BE', tk: 'vrk5vyv.css', base: 'fr' },
@@ -123,8 +136,13 @@ const CONFIG = {
     dk: { ietf: 'da-DK', tk: 'aaz7dvd.css' },
     de: { ietf: 'de-DE', tk: 'vin7zsi.css' },
     ee: { ietf: 'et-EE', tk: 'aaz7dvd.css' },
-    es: { ietf: 'es-ES', tk: 'oln4yqj.css' },
+    es: {
+      ietf: 'es-ES',
+      tk: 'oln4yqj.css',
+      regions: { la: { prefix: '/la', ietf: 'es-LA' } },
+    },
     fr: { ietf: 'fr-FR', tk: 'vrk5vyv.css' },
+    el: { ietf: 'el', tk: 'fnx0rsr.css' },
     gr_en: { ietf: 'en-GR', tk: 'pps7abe.css', base: '' },
     ie: { ietf: 'en-GB', tk: 'pps7abe.css', base: '' },
     il_en: { ietf: 'en-IL', tk: 'pps7abe.css', base: '' },
@@ -140,7 +158,7 @@ const CONFIG = {
     nl: { ietf: 'nl-NL', tk: 'cya6bri.css' },
     no: { ietf: 'no-NO', tk: 'aaz7dvd.css' },
     pl: { ietf: 'pl-PL', tk: 'aaz7dvd.css' },
-    pt: { ietf: 'pt-PT', tk: 'inq1xob.css' },
+    pt: { ietf: 'pt-BR', tk: 'inq1xob.css' },
     ro: { ietf: 'ro-RO', tk: 'aaz7dvd.css' },
     sa_en: { ietf: 'en', tk: 'pps7abe.css', base: '' },
     ch_de: { ietf: 'de-CH', tk: 'vin7zsi.css' },
@@ -156,14 +174,18 @@ const CONFIG = {
     at: { ietf: 'de-AT', tk: 'vin7zsi.css' },
     cz: { ietf: 'cs-CZ', tk: 'aaz7dvd.css' },
     bg: { ietf: 'bg-BG', tk: 'aaz7dvd.css' },
-    ru: { ietf: 'ru-RU', tk: 'aaz7dvd.css' },
+    ru: {
+      ietf: 'ru-RU',
+      tk: 'aaz7dvd.css',
+      regions: { cis_ru: { prefix: '/cis_ru', ietf: 'ru' } },
+    },
     ua: { ietf: 'uk-UA', tk: 'aaz7dvd.css' },
     il_he: { ietf: 'he', tk: 'nwq1mna.css', dir: 'rtl' },
     ae_ar: { ietf: 'ar', tk: 'nwq1mna.css', dir: 'rtl' },
     mena_ar: { ietf: 'ar', tk: 'dis2dpj.css', dir: 'rtl' },
     sa_ar: { ietf: 'ar', tk: 'nwq1mna.css', dir: 'rtl' },
     // Asia Pacific
-    au: { ietf: 'en-AU', tk: 'pps7abe.css' },
+    au: { ietf: 'en-GB', tk: 'pps7abe.css' },
     hk_en: { ietf: 'en-HK', tk: 'pps7abe.css', base: '' },
     in: { ietf: 'en-GB', tk: 'pps7abe.css' },
     id_id: { ietf: 'id', tk: 'czc0mun.css' },
@@ -177,7 +199,8 @@ const CONFIG = {
     th_en: { ietf: 'en', tk: 'pps7abe.css', base: '' },
     in_hi: { ietf: 'hi', tk: 'aaa8deh.css' },
     th_th: { ietf: 'th', tk: 'lqo2bst.css' },
-    cn: { ietf: 'zh-CN', tk: 'puu3xkp' },
+    cn: { ietf: 'zh-Hans', tk: 'puu3xkp' },
+    zh: { ietf: 'zh-Hant', tk: 'jay0ecd' },
     hk_zh: { ietf: 'zh-HK', tk: 'jay0ecd' },
     tw: { ietf: 'zh-TW', tk: 'jay0ecd' },
     jp: { ietf: 'ja-JP', tk: 'dvg6awq' },
@@ -243,9 +266,10 @@ const CONFIG = {
   uniqueSiteId: 'edu',
   mepLingoCountryToRegion: {
     africa: ['ke', 'mu', 'ng', 'za'],
-    la: ['ag', 'ar', 'bo', 'cl', 'co', 'cr', 'cu', 'do', 'ec', 'gt', 'hn', 'mx', 'ni', 'pa', 'pe', 'pr', 'py', 'sv', 'uy', 've'],
+    la: ['ar', 'bo', 'cl', 'co', 'cr', 'do', 'ec', 'gt', 'hn', 'mx', 'ni', 'pa', 'pe', 'pr', 'py', 'sv', 'tt', 'us', 'uy', 've'],
+    mena_ar: ['ae', 'bh', 'dz', 'eg', 'iq', 'jo', 'kw', 'lb', 'ma', 'om', 'qa', 'sa'],
     mena_en: ['ae', 'af', 'bh', 'dz', 'eg', 'iq', 'ir', 'jo', 'kw', 'lb', 'ly', 'ma', 'om', 'ps', 'qa', 'sa', 'sy', 'tn', 'ye'],
-    cis_en: ['am', 'az', 'ge', 'kz', 'kg', 'md', 'tj', 'tm', 'uz'],
+    cis_ru: ['am', 'az', 'ge', 'kz', 'kg', 'tj', 'tm', 'uz'],
   },
 };
 
