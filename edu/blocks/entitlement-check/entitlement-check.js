@@ -338,7 +338,7 @@ export default async function init(block) {
     try {
       if (eligible) {
         window.location.assign(
-          `${redirectHost}/home/a/${encodeURIComponent(domain)}?assign_pac=PA-2300&sdid=XFWLH43Y`,
+          `${redirectHost}/apps/all/all-platforms/a/${encodeURIComponent(domain)}?assign_pac=PA-2300&sdid=XFWLH43Y`,
         );
         dispose();
       } else {
