@@ -1,0 +1,78 @@
+name: Verify EDU merge setup (read-only)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    if: github.repository == 'adobecom/edu'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: express_pr_merge
+    steps:
+      - name: Checkout verification code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+
+      - name: Validate configuration without displaying secret values
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
+        env:
+          EXPRESS_MERGE_APP_ID: ${{ secrets.EXPRESS_MERGE_APP_ID }}
+          EXPRESS_MERGE_PRIVATE_KEY: ${{ secrets.EXPRESS_MERGE_PRIVATE_KEY }}
+          REQUIRED_APPROVALS: ${{ secrets.REQUIRED_APPROVALS }}
+          MAX_PRS_PER_BATCH: ${{ secrets.MAX_PRS_PER_BATCH }}
+          STAGE_RCP_OFFSET_DAYS: ${{ secrets.STAGE_RCP_OFFSET_DAYS }}
+          MAIN_RCP_OFFSET_DAYS: ${{ secrets.MAIN_RCP_OFFSET_DAYS }}
+        with:
+          script: |
+            const { validateConfiguration } = await import(
+              `${process.env.GITHUB_WORKSPACE}/.github/workflows/verify-merge-setup.mjs`
+            );
+            validateConfiguration(process.env);
+            core.info('All six required secrets are available; numeric configuration is valid.');
+
+      - name: Create repository-scoped read-only App token
+        id: app-token
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349
+        with:
+          app-id: ${{ secrets.EXPRESS_MERGE_APP_ID }}
+          private-key: ${{ secrets.EXPRESS_MERGE_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: edu
+          permission-contents: read
+          permission-pull-requests: read
+          permission-issues: read
+          permission-checks: read
+
+      - name: Verify installation and repository access using GET requests only
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
+        env:
+          EXPRESS_MERGE_APP_ID: ${{ secrets.EXPRESS_MERGE_APP_ID }}
+          EXPRESS_MERGE_PRIVATE_KEY: ${{ secrets.EXPRESS_MERGE_PRIVATE_KEY }}
+          INSTALLATION_ID: ${{ steps.app-token.outputs.installation-id }}
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          script: |
+            const { verifyInstallation } = await import(
+              `${process.env.GITHUB_WORKSPACE}/.github/workflows/verify-merge-setup.mjs`
+            );
+            await verifyInstallation({ github, context, core, env: process.env });
+            await core.summary
+              .addHeading('EDU merge setup verification')
+              .addRaw([
+                '- All six required secrets are available; numeric configuration is valid.',
+                '- App credentials authenticate a non-suspended installation with the required configured permissions.',
+                '- A repository-scoped read-only token can read EDU, both branches, PRs, labels, and checks.',
+                '- Squash merging and merge commits are enabled at repository level.',
+                '',
+                'No PRs, comments, labels, branches, rules, or secrets were modified.',
+                'Token creation/revocation and GitHub Actions run/deployment records are the only lifecycle writes.',
+                '',
+                '**Not certified:** branch-rule bypass/merge eligibility, release-calendar policy,',
+                'the exact scope supplying each secret, or successful execution of the merge scripts.',
+              ].join('\n'))
+              .write();
