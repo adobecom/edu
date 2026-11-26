@@ -70,6 +70,34 @@ the live PR suite. Run them explicitly:
 npx playwright test nala/utils/base-reporter.test.cjs --project=edu-live-chromium --reporter=list
 ```
 
+### Read-only merge setup verification
+
+The manual **Verify EDU merge setup (read-only)** workflow validates the six
+merge secrets available to a job using `express_pr_merge`, authenticates the
+App, checks its configured permissions, and reads EDU's branches, PRs, labels,
+and checks using a repository-scoped read-only installation token. It never
+imports or executes the merge scripts and needs no dependency installation.
+Secret values are not printed.
+
+Publish `verify-merge-setup.yaml` and `verify-merge-setup.mjs` to the default
+branch (`stage`) before using **Actions > Verify EDU merge setup (read-only) >
+Run workflow**. Use a reviewed ref: the job has access to the App private key.
+The workflow has no push, pull-request, scheduled, or repository-dispatch trigger.
+Token creation/revocation and Actions run/deployment records are its only
+lifecycle writes; it does not modify PRs, comments, labels, repository settings,
+or branches.
+
+A passing run does not prove branch-rule bypass or merge eligibility, confirm
+which secret scope supplied each value, approve the release calendar, or test
+the merge scripts. Missing or invalid configuration and denied reads fail the
+run rather than returning a success-shaped preview.
+
+Run the focused local tests with:
+
+```sh
+node --test .github/workflows/verify-merge-setup.test.mjs
+```
+
 ## Security
 1. Create a Service Now ID for your project via [Service Registry Portal](https://adobe.service-now.com/service_registry_portal.do#/search)
 2. Update the `.kodiak/config.yaml` file to make sure valid team members are assigned security vulnerability Jira tickets.
